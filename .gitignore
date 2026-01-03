@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-electron
+release
+.DS_Store
+*.log
+*.local
+.env
+.idea
+.vscode
+temp_asar_extract
+test-results
+data
+build_log.txt

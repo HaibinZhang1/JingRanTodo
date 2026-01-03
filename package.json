@@ -1,0 +1,119 @@
+{
+    "name": "jingrantodo",
+    "version": "1.0.0",
+    "description": "井然 - 终极悬浮玻璃待办清单",
+    "main": "dist-electron/main/index.js",
+    "scripts": {
+        "dev": "chcp 65001 >nul 2>&1 & cross-env LANG=en_US.UTF-8 vite",
+        "build": "tsc && vite build && electron-builder",
+        "build:vite": "vite build",
+        "preview": "vite preview",
+        "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
+        "electron:build": "npm run build:vite && electron-builder",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
+        "test:integration": "vitest run",
+        "test:integration:ui": "vitest --ui",
+        "test:e2e": "npm run build:vite && playwright test",
+        "test:all": "npm run test && npm run test:integration && npm run test:e2e",
+        "icon": "node scripts/generate-icon.js"
+    },
+    "dependencies": {
+        "chrono-node": "^2.9.0",
+        "electron-updater": "^6.6.2",
+        "koffi": "^2.14.1",
+        "node-machine-id": "^1.1.12",
+        "sql.js": "^1.13.0",
+        "xlsx": "^0.18.5"
+    },
+    "devDependencies": {
+        "@dnd-kit/core": "^6.1.0",
+        "@dnd-kit/modifiers": "^9.0.0",
+        "@dnd-kit/sortable": "^8.0.0",
+        "@dnd-kit/utilities": "^3.2.2",
+        "@electron/rebuild": "^4.0.2",
+        "@playwright/test": "^1.57.0",
+        "@reduxjs/toolkit": "^2.0.1",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.1",
+        "@types/jest": "^30.0.0",
+        "@types/react": "^18.2.43",
+        "@types/react-dom": "^18.2.17",
+        "@types/uuid": "^9.0.7",
+        "@vitejs/plugin-react": "^4.2.1",
+        "@vitest/coverage-v8": "^4.0.16",
+        "@vitest/ui": "^4.0.16",
+        "autoprefixer": "^10.4.16",
+        "concurrently": "^8.2.2",
+        "cross-env": "^10.1.0",
+        "date-fns": "^4.1.0",
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1",
+        "i18next": "^23.7.11",
+        "identity-obj-proxy": "^3.0.0",
+        "jest": "^30.2.0",
+        "jest-environment-jsdom": "^30.2.0",
+        "lucide-react": "^0.294.0",
+        "playwright": "^1.57.0",
+        "postcss": "^8.4.32",
+        "react": "^18.2.0",
+        "react-colorful": "^5.6.1",
+        "react-dom": "^18.2.0",
+        "react-i18next": "^14.0.0",
+        "react-markdown": "^10.1.0",
+        "react-redux": "^9.0.4",
+        "remark-breaks": "^4.0.0",
+        "remark-gfm": "^4.0.1",
+        "tailwindcss": "^3.3.6",
+        "ts-jest": "^29.4.6",
+        "typescript": "^5.3.3",
+        "uuid": "^9.0.1",
+        "vite": "^5.0.8",
+        "vite-plugin-electron": "^0.15.4",
+        "vite-plugin-electron-renderer": "^0.14.5",
+        "vitest": "^4.0.16",
+        "wait-on": "^7.2.0"
+    },
+    "build": {
+        "appId": "com.jingrantodo.app",
+        "productName": "井然",
+        "copyright": "Copyright © 2025 JingRan Team",
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "dist/**/*",
+            "dist-electron/**/*",
+            "public/**/*",
+            "package.json"
+        ],
+        "electronLanguages": [
+            "en",
+            "zh-CN"
+        ],
+        "extraResources": [
+            {
+                "from": "public",
+                "to": "public",
+                "filter": [
+                    "**/*"
+                ]
+            }
+        ],
+        "win": {
+            "target": [
+                "nsis"
+            ],
+            "icon": "public/icon.png"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        },
+        "publish": {
+            "provider": "generic",
+            "url": "http://127.0.0.1:8080/updates/"
+        }
+    }
+}

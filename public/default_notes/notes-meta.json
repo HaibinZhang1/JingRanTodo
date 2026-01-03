@@ -1,0 +1,85 @@
+{
+  "c44e9fd4-bbd8-417e-90cd-7f7dd70c7d37": {
+    "id": "c44e9fd4-bbd8-417e-90cd-7f7dd70c7d37",
+    "title": "浮窗规则",
+    "updatedAt": 1767452408576,
+    "isFloating": false,
+    "position": {
+      "x": 100,
+      "y": 100
+    },
+    "width": 320,
+    "height": 246,
+    "zIndex": 1,
+    "mode": "split",
+    "textSettings": {
+      "fontSize": 13,
+      "fontFamily": "system-ui, sans-serif",
+      "opacity": 100
+    },
+    "isPinned": true,
+    "showOnDashboard": false,
+    "dashboardOrder": 0,
+    "showHeader": false
+  },
+  "4c6d3f5b-8538-4815-9fe7-4b4e3a2feaf8": {
+    "id": "4c6d3f5b-8538-4815-9fe7-4b4e3a2feaf8",
+    "title": "笔记规则",
+    "updatedAt": 1767452409169,
+    "isFloating": false,
+    "position": {
+      "x": 100,
+      "y": 100
+    },
+    "width": 320,
+    "height": 225,
+    "zIndex": 1,
+    "mode": "edit",
+    "isPinned": true
+  },
+  "b37efd74-084e-4ae0-bc6f-de7f644e8136": {
+    "id": "b37efd74-084e-4ae0-bc6f-de7f644e8136",
+    "title": "Markdown语法参考",
+    "updatedAt": 1767435881406,
+    "isFloating": false,
+    "isPinned": false,
+    "position": {
+      "x": 100,
+      "y": 100
+    },
+    "width": 284,
+    "height": 252,
+    "zIndex": 1,
+    "mode": "edit",
+    "showOnDashboard": false,
+    "dashboardOrder": 0,
+    "textSettings": {
+      "fontSize": 13,
+      "fontFamily": "system-ui, sans-serif",
+      "opacity": 100
+    }
+  },
+  "0a4a8f89-7993-4c06-bba4-982135972d82": {
+    "updatedAt": 1767453287875,
+    "isFloating": false,
+    "isPinned": false,
+    "position": {
+      "x": 100,
+      "y": 100
+    },
+    "width": 299,
+    "height": 280,
+    "zIndex": 1,
+    "mode": "edit",
+    "showOnDashboard": true,
+    "dashboardOrder": 0,
+    "title": "灵感收纳",
+    "id": "0a4a8f89-7993-4c06-bba4-982135972d82",
+    "showHeader": false,
+    "textSettings": {
+      "fontSize": 13,
+      "fontFamily": "system-ui, sans-serif",
+      "opacity": 85
+    }
+  }
+}

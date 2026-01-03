@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS 井然图标 - 终极悬浮玻璃</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #0f172a;
+            overflow: hidden;
+        }
+
+        /* 1. 图标容器框 */
+        .icon-frame {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            /* 保持背景色不变 */
+            background: linear-gradient(135deg, #99DFFF 0%, #A26DE9 100%);
+            border-radius: 68px;
+            /* 容器自身的投影 */
+            box-shadow:
+                0 40px 100px -20px rgba(100, 50, 200, 0.5),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            z-index: 10;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 2. 通用 Mask 定义 (避免重复代码) */
+        .mask-shape {
+            /* 井字 SVG 形状 */
+            -webkit-mask-image: url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='104' y='55' width='28' height='190' rx='14' fill='black'/%3E%3Crect x='168' y='55' width='28' height='190' rx='14' fill='black'/%3E%3Crect x='55' y='104' width='190' height='28' rx='14' fill='black'/%3E%3Crect x='55' y='168' width='190' height='28' rx='14' fill='black'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='104' y='55' width='28' height='190' rx='14' fill='black'/%3E%3Crect x='168' y='55' width='28' height='190' rx='14' fill='black'/%3E%3Crect x='55' y='104' width='190' height='28' rx='14' fill='black'/%3E%3Crect x='55' y='168' width='190' height='28' rx='14' fill='black'/%3E%3C/svg%3E");
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            mask-position: center;
+            -webkit-mask-position: center;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 3. 悬浮投影层 (Shadow Layer)
+           独立的一层，专门负责把影子投在背景上，制造距离感 */
+        .glass-shadow {
+            z-index: 15;
+            /* 修改：大幅弱化阴影浓度，使用极淡的紫黑色，模拟自然环境光遮蔽 */
+            background: rgba(20, 10, 40, 0.15);
+            /* 修改：增加模糊半径，让边缘过渡非常柔和自然 */
+            filter: blur(20px);
+            transform: translate(0px, 10px);
+            /* 略微减小垂直偏移 */
+            transition: all 0.5s ease;
+        }
+
+        /* 4. 玻璃本体层 (Main Body) */
+        .glass-body {
+            z-index: 20;
+            /* 磨砂效果 */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+
+            /* 修改：主体改为纯白色 (Solid White) */
+            background: #ffffff;
+
+            /* 混合模式 Normal，确保白色的纯净度 */
+            mix-blend-mode: normal;
+        }
+
+        /* 5. 棱镜边缘光层 (Rim Light / Bevel)
+           这是玻璃质感的关键：模拟边缘的厚度和光线折射 */
+        .glass-edge {
+            z-index: 21;
+            /* 使用 transparent background，只靠 filter 显示边缘 */
+            background: transparent;
+            pointer-events: none;
+
+            /* 关键技术：使用多重 drop-shadow 模拟 3D 边缘 */
+            filter:
+                /* 顶部/左侧高光：锐利、明亮 */
+                drop-shadow(-1px -1px 0px rgba(255, 255, 255, 0.8)) drop-shadow(-2px -2px 1px rgba(255, 255, 255, 0.4))
+                /* 底部/右侧反光：稍弱，模拟环境光 */
+                drop-shadow(1px 1px 0px rgba(255, 255, 255, 0.15)) drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.1));
+        }
+
+        /* 6. 表面光泽层 (Surface Shine) */
+        .glass-shine {
+            z-index: 22;
+            background: linear-gradient(115deg,
+                    transparent 30%,
+                    rgba(255, 255, 255, 0.4) 45%,
+                    /* 一道强烈的光束 */
+                    rgba(255, 255, 255, 0.1) 50%,
+                    transparent 70%);
+            opacity: 0.8;
+            pointer-events: none;
+            mix-blend-mode: overlay;
+        }
+
+        /* 交互动画 */
+        .icon-frame:hover .glass-shadow {
+            transform: translate(0px, 20px) scale(0.95);
+            /* 悬浮更高 */
+            filter: blur(25px);
+            /* 阴影更扩散 */
+            opacity: 0.1;
+            /* 悬停时阴影更淡 */
+        }
+
+        .icon-frame:hover .glass-body,
+        .icon-frame:hover .glass-edge,
+        .icon-frame:hover .glass-shine {
+            transform: translateY(-5px);
+            /* 玻璃本体上浮 */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="icon-frame">
+        <!-- 第1层：阴影 (制造悬浮感) -->
+        <div class="mask-shape glass-shadow"></div>
+
+        <!-- 第2层：玻璃本体 (磨砂 + 渐变) -->
+        <div class="mask-shape glass-body"></div>
+
+        <!-- 第3层：棱镜边缘 (勾勒轮廓) -->
+        <div class="mask-shape glass-edge"></div>
+
+        <!-- 第4层：表面光泽 (增加质感) -->
+        <div class="mask-shape glass-shine"></div>
+    </div>
+
+</body>
+
+</html>

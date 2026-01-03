@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "skipLibCheck": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "outDir": "dist-electron",
+        "baseUrl": ".",
+        "paths": {
+            "@main/*": [
+                "src/main/*"
+            ]
+        }
+    },
+    "include": [
+        "src/main",
+        "src/preload",
+        "vite.config.ts",
+        "electron.vite.config.ts"
+    ]
+}
