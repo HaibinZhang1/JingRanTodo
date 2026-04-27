@@ -163,25 +163,35 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
     }, [task])
 
-    // Keyboard shortcuts: ESC to cancel, Enter to save (only when not focused on textarea)
+    // Keyboard shortcuts: ESC 取消，Enter 保存；textarea 中保留换行
     useEffect(() => {
         if (!isOpen) return
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
+                e.preventDefault()
                 handleClose()
+                return
             }
-            // Ctrl/Cmd + Enter to save
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+
+            if (e.key !== 'Enter' || e.isComposing) return
+
+            const target = e.target as HTMLElement | null
+            const isTextArea = target?.tagName === 'TEXTAREA'
+            const isButton = !!target?.closest('button')
+            const shouldSave = (e.ctrlKey || e.metaKey) || (!e.shiftKey && !isTextArea && !isButton)
+
+            if (shouldSave) {
+                e.preventDefault()
                 handleSave()
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isOpen, title])
+    }, [isOpen, handleClose, handleSave])
 
-    const handleClose = () => {
+    function handleClose() {
         // Clear local state when closing
         resetSubtasks()
         onClose()
@@ -198,7 +208,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         return today > dueDateObj
     })()
 
-    const handleSave = async () => {
+    async function handleSave() {
         if (!title.trim()) return
 
         // 检查提醒设置是否被修改

@@ -96,6 +96,8 @@ export interface RecurringTemplateData {
   time: string
   reminder_time?: string | null
   reminderTime?: string | null  // 前端别名
+  reminder_only?: boolean | number
+  reminderOnly?: boolean  // 前端别名
   priority?: Priority
   enabled?: boolean | number
   last_generated?: string | null
@@ -359,6 +361,7 @@ function createTables(): void {
       frequency TEXT NOT NULL,
       time TEXT NOT NULL,
       reminder_time TEXT,
+      reminder_only INTEGER NOT NULL DEFAULT 0,
       priority TEXT DEFAULT 'medium',
       enabled INTEGER NOT NULL DEFAULT 1,
       last_generated TEXT,
@@ -375,6 +378,9 @@ function createTables(): void {
   // 迁移：添加周期任务优先级字段
   try {
     db.run(`ALTER TABLE recurring_templates ADD COLUMN priority TEXT DEFAULT 'medium'`)
+  } catch (e) { /* 字段已存在 */ }
+  try {
+    db.run(`ALTER TABLE recurring_templates ADD COLUMN reminder_only INTEGER DEFAULT 0`)
   } catch (e) { /* 字段已存在 */ }
 
   // AI 服务提供者表
@@ -872,6 +878,7 @@ export function getAllRecurringTemplates(): RecurringTemplateData[] {
   return templates.map((t: RecurringTemplateData) => ({
     ...t,
     enabled: Boolean(t.enabled),
+    reminderOnly: Boolean(t.reminder_only),
     priority: t.priority || 'medium',
     weekDays: t.week_days ? JSON.parse(t.week_days) : undefined,
     monthDays: t.month_days ? JSON.parse(t.month_days) : undefined,
@@ -887,8 +894,8 @@ export function createRecurringTemplate(template: RecurringTemplateData): Recurr
   if (!db) throw new Error('Database not initialized')
   const now = new Date().toISOString()
   const stmt = db.prepare(`
-    INSERT INTO recurring_templates (id, title, frequency, time, reminder_time, priority, enabled, last_generated, start_date, week_days, month_days, interval_days, remind_day_offsets, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recurring_templates (id, title, frequency, time, reminder_time, reminder_only, priority, enabled, last_generated, start_date, week_days, month_days, interval_days, remind_day_offsets, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   stmt.run([
     template.id,
@@ -896,6 +903,7 @@ export function createRecurringTemplate(template: RecurringTemplateData): Recurr
     template.frequency,
     template.time,
     template.reminderTime || null,
+    (template.reminderOnly ?? Boolean(template.reminder_only)) ? 1 : 0,
     template.priority || 'medium',
     template.enabled !== false ? 1 : 0, // 使用传入的 enabled 值
     template.lastGenerated || null,
@@ -950,7 +958,7 @@ export function updateRecurringTemplate(template: RecurringTemplateData): Recurr
 
   const stmt = db.prepare(`
     UPDATE recurring_templates SET 
-      title = ?, frequency = ?, time = ?, reminder_time = ?, priority = ?, enabled = ?,
+      title = ?, frequency = ?, time = ?, reminder_time = ?, reminder_only = ?, priority = ?, enabled = ?,
       last_generated = ?, start_date = ?, week_days = ?, month_days = ?,
       interval_days = ?, remind_day_offsets = ?, updated_at = ?
     WHERE id = ?
@@ -960,6 +968,7 @@ export function updateRecurringTemplate(template: RecurringTemplateData): Recurr
     template.frequency,
     template.time,
     template.reminderTime || null,
+    (template.reminderOnly ?? Boolean(template.reminder_only)) ? 1 : 0,
     template.priority || 'medium',
     template.enabled !== false ? 1 : 0,
     effectiveLastGenerated,
@@ -992,6 +1001,7 @@ interface ParsedTemplate {
   frequency: string
   time?: string
   reminder_time?: string
+  reminder_only?: boolean
   priority?: string
   last_generated?: string
   start_date?: string
@@ -1006,6 +1016,7 @@ interface ParsedTemplate {
 function parseTemplate(raw: any): ParsedTemplate {
   return {
     ...raw,
+    reminder_only: Boolean(raw.reminder_only),
     weekDays: raw.week_days ? JSON.parse(raw.week_days) : [],
     monthDays: raw.month_days ? JSON.parse(raw.month_days) : [],
     remindDayOffsets: raw.remind_day_offsets ? JSON.parse(raw.remind_day_offsets) : []
@@ -1101,12 +1112,13 @@ export function checkAndGenerateRecurringTasks(): { generated: number; templates
       continue
     }
 
-    // Check if time has arrived
-    if (template.time) {
+    // Check if trigger time has arrived
+    const triggerTime = template.reminder_only ? (template.reminder_time || template.time) : template.time
+    if (triggerTime) {
       const now = new Date()
       const currentHours = now.getHours()
       const currentMinutes = now.getMinutes()
-      const [targetHours, targetMinutes] = template.time.split(':').map(Number)
+      const [targetHours, targetMinutes] = triggerTime.split(':').map(Number)
 
       const currentTimeValue = currentHours * 60 + currentMinutes
       const targetTimeValue = targetHours * 60 + targetMinutes
@@ -1114,6 +1126,20 @@ export function checkAndGenerateRecurringTasks(): { generated: number; templates
       if (currentTimeValue < targetTimeValue) {
         continue
       }
+    }
+
+    if (template.reminder_only) {
+      const notifyTime = template.reminder_time || template.time || ''
+      import('./reminder').then(({ sendNotification }) => {
+        const suffix = notifyTime ? `(${todayStr} ${notifyTime})` : `(${todayStr})`
+        sendNotification(template.title, `周期提醒时间到了！${suffix}`)
+      }).catch(err => console.error('Failed to send reminder-only recurring notification:', err))
+
+      const updateStmt = db.prepare(`UPDATE recurring_templates SET last_generated = ? WHERE id = ?`)
+      updateStmt.run([todayStr, template.id])
+      updateStmt.free()
+      saveDatabase()
+      continue
     }
 
     // 防止午夜边界重复生成：检查今天是否已存在该模板生成的任务

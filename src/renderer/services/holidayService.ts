@@ -59,13 +59,21 @@ export async function loadHolidayData(year: number): Promise<HolidayData | null>
     // 开始加载
     const loadPromise = (async () => {
         try {
-            // 在 Electron 环境中，public 目录资源通过相对路径访问
-            const response = await fetch(`/holiday/${year}-holiday.json`)
-            if (!response.ok) {
-                console.warn(`[HolidayService] Failed to load ${year} holiday data: ${response.status}`)
-                return null
+            let data: { code?: number; holiday: Record<string, HolidayEntry>; type: Record<string, TypeEntry> } | null = null
+
+            if (window.electronAPI?.getHolidayData) {
+                data = await window.electronAPI.getHolidayData(year)
             }
-            const data = await response.json() as { code?: number; holiday: Record<string, HolidayEntry>; type: Record<string, TypeEntry> }
+
+            if (!data) {
+                // 开发环境兜底：Vite 会直接从 public/holiday 提供静态资源
+                const response = await fetch(`/holiday/${year}-holiday.json`)
+                if (!response.ok) {
+                    console.warn(`[HolidayService] Failed to load ${year} holiday data: ${response.status}`)
+                    return null
+                }
+                data = await response.json() as { code?: number; holiday: Record<string, HolidayEntry>; type: Record<string, TypeEntry> }
+            }
 
             const holidayData: HolidayData = {
                 holiday: data.holiday || {},

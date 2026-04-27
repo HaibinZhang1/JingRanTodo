@@ -9,6 +9,7 @@ export interface RecurringTemplate {
     frequency: RecurringFrequency
     time: string
     reminderTime?: string
+    reminderOnly?: boolean
     priority?: 'very-low' | 'low' | 'medium' | 'high' | 'very-high'
     enabled: boolean
     lastGenerated?: string

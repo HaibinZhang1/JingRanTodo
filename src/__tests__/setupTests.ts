@@ -15,6 +15,9 @@ Object.defineProperty(window, 'electronAPI', {
         getSetting: jest.fn().mockResolvedValue(null),
         setSetting: jest.fn().mockResolvedValue(undefined),
         getAllPanels: jest.fn().mockResolvedValue([]),
+        onSoftwareNotification: jest.fn().mockReturnValue(() => {}),
+        getActiveSoftwareNotifications: jest.fn().mockResolvedValue([]),
+        dismissSoftwareNotification: jest.fn(),
     },
     writable: true,
 })

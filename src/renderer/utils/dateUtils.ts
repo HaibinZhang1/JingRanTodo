@@ -14,6 +14,24 @@ export function formatLocalDate(d: Date): string {
 }
 
 /**
+ * 提取日期部分并规范化为 YYYY-MM-DD
+ */
+export function getDateOnly(value?: string | null): string | null {
+    if (!value) return null
+
+    const rawDate = value.split(/[\sT]/)[0].replace(/\//g, '-')
+    const match = rawDate.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+    if (match) {
+        const [, year, month, day] = match
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    }
+
+    const parsed = new Date(value)
+    if (isNaN(parsed.getTime())) return null
+    return formatLocalDate(parsed)
+}
+
+/**
  * 获取今日日期字符串
  */
 export function getToday(): string {

@@ -618,7 +618,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
-                                                value={notesPath || '默认位置 (public/notes)'}
+                                                value={notesPath || '默认位置 (用户数据目录/notes)'}
                                                 readOnly
                                                 className="flex-1 px-3 py-2 bg-white/30 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300 outline-none"
                                             />

@@ -15,8 +15,36 @@ import { TaskPreviewCard } from './TaskPreviewCard'
 import { getHolidayInfo, preloadHolidayData } from '../services/holidayService'
 import { CopyFormatSettingsModal } from './CopyFormatSettingsModal'
 import { toChineseNum, getPriorityColor } from '../utils/formatUtils'
+import { getDateOnly } from '../utils/dateUtils'
 
 // getPriorityColor 已从 utils/formatUtils 导入
+
+const NO_TIME_SORT_VALUE = 24 * 60 + 1
+
+function getTimeMinutes(value?: string | null): number {
+    if (!value) return NO_TIME_SORT_VALUE
+
+    const timePart = value.includes('T') ? value.split('T')[1] : value
+    const match = timePart.match(/^(\d{1,2}):(\d{1,2})/)
+    if (!match) return NO_TIME_SORT_VALUE
+
+    const hour = Number(match[1])
+    const minute = Number(match[2])
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return NO_TIME_SORT_VALUE
+    return hour * 60 + minute
+}
+
+function getTaskSortMinutes(task: Task): number {
+    if (typeof task.reminder_hour === 'number') {
+        return task.reminder_hour * 60 + (task.reminder_minute || 0)
+    }
+
+    return Math.min(
+        getTimeMinutes(task.reminder_time),
+        getTimeMinutes(task.due_date),
+        getTimeMinutes(task.created_at)
+    )
+}
 
 // Draggable Task Item for Week View
 const DraggableWeekTask: React.FC<{
@@ -40,7 +68,7 @@ const DraggableWeekTask: React.FC<{
             {...attributes}
             onClick={(e) => { e.stopPropagation(); onClick(e) }}
             onContextMenu={onContextMenu}
-            className={`relative mb-1 px-2 py-1 pl-3 rounded-lg border border-gray-100 text-xs shadow-sm cursor-grab hover:scale-[1.02] transition-transform truncate ${isCompleted ? 'line-through text-gray-400 bg-gray-50/80' : 'bg-white/80 text-gray-700'} ${isDragging ? 'opacity-50' : ''}`}
+            className={`relative mb-1 w-full max-w-full min-w-0 px-2 py-1 pl-3 rounded-lg border border-gray-100 text-xs shadow-sm cursor-grab hover:scale-[1.02] transition-transform truncate ${isCompleted ? 'line-through text-gray-400 bg-gray-50/80' : 'bg-white/80 text-gray-700'} ${isDragging ? 'opacity-50' : ''}`}
         >
             {/* Left priority color bar */}
             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getPriorityColor(task.priority)}`} />
@@ -90,8 +118,16 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
     const dispatch = useAppDispatch()
     const [currentDate, setCurrentDate] = useState(new Date())
     const isCollapsed = useAppSelector((state: RootState) => state.settings.weekViewCollapsed)
+    const copyFormat = useAppSelector((state: RootState) => state.settings.copyFormat)
+    const copyTemplateTask = useAppSelector((state: RootState) => state.settings.copyTemplateTask)
+    const copyTemplateSubtask = useAppSelector((state: RootState) => state.settings.copyTemplateSubtask)
     const [holidayLoaded, setHolidayLoaded] = useState(false)
     const [activeTask, setActiveTask] = useState<Task | null>(null)
+    const copyFormatSettings = useMemo(() => ({
+        copyFormat,
+        copyTemplateTask,
+        copyTemplateSubtask
+    }), [copyFormat, copyTemplateTask, copyTemplateSubtask])
 
     // 使用 PointerSensor 配合位移激活，匹配日历视图和看板的拖拽响应速度
     const pointerSensor = useSensor(PointerSensor, {
@@ -187,17 +223,13 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
     // 预览卡片状态
     const [previewTask, setPreviewTask] = useState<{ task: Task; position: { x: number; y: number } } | null>(null)
 
-    // 复制格式设置状态
-    const [copyFormatSettings, setCopyFormatSettings] = useState<{
-        copyFormat: 'text' | 'json' | 'markdown'
-        copyTemplateTask: string
-        copyTemplateSubtask: string
-    }>({
-        copyFormat: 'text',
-        copyTemplateTask: '{{chinese_index}}、{{title}}\n    {{description}}\n{{subtasks}}',
-        copyTemplateSubtask: '    {{index}}.{{title}}\n        {{description}}'
-    })
     const [showFormatSettings, setShowFormatSettings] = useState(false)
+
+    const handleSaveCopySettings = (settings: typeof copyFormatSettings) => {
+        dispatch(saveSetting({ key: 'copyFormat', value: settings.copyFormat }))
+        dispatch(saveSetting({ key: 'copyTemplateTask', value: settings.copyTemplateTask }))
+        dispatch(saveSetting({ key: 'copyTemplateSubtask', value: settings.copyTemplateSubtask }))
+    }
 
     // 处理任务点击 - 显示预览卡片
     const handleTaskClick = (task: Task, e: React.MouseEvent) => {
@@ -224,8 +256,9 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
     const isMultiDayTask = (task: Task): boolean => {
         if (!task.start_date || !task.due_date) return false
         // 提取日期部分（YYYY-MM-DD），忽略时间部分
-        const startDateOnly = task.start_date.split('T')[0]
-        const dueDateOnly = task.due_date.split('T')[0]
+        const startDateOnly = getDateOnly(task.start_date)
+        const dueDateOnly = getDateOnly(task.due_date)
+        if (!startDateOnly || !dueDateOnly) return false
         return startDateOnly !== dueDateOnly
     }
 
@@ -249,8 +282,17 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
         return tasks.filter(t => {
             if (t.status !== 'done' || !t.due_date) return false
             // 提取日期部分进行比较
-            const dueDateOnly = t.due_date.split('T')[0]
+            const dueDateOnly = getDateOnly(t.due_date)
+            if (!dueDateOnly) return false
             return dueDateOnly >= weekStart && dueDateOnly <= weekEnd
+        }).sort((a, b) => {
+            const dateCompare = (getDateOnly(a.due_date) || '').localeCompare(getDateOnly(b.due_date) || '')
+            if (dateCompare !== 0) return dateCompare
+
+            const timeCompare = getTaskSortMinutes(a) - getTaskSortMinutes(b)
+            if (timeCompare !== 0) return timeCompare
+
+            return a.rank.localeCompare(b.rank)
         })
     }, [tasks, weekDays])
 
@@ -545,9 +587,9 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
                         </div>
 
                         {/* Main grid area */}
-                        <div className="flex-1 flex flex-col min-h-0">
+                        <div className="flex-1 flex flex-col min-h-0 min-w-0">
                             {/* Header Row */}
-                            <div className="flex border-b border-gray-200/60 dark:border-white/10">
+                            <div className="grid grid-cols-7 border-b border-gray-200/60 dark:border-white/10">
                                 {weekDays.map((date, index) => {
                                     const dateStr = format(date, 'yyyy-MM-dd')
                                     const isCurrentDay = isToday(date)
@@ -581,13 +623,13 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
                                     return (
                                         <div
                                             key={dateStr}
-                                            className="flex-1 h-8 border-r border-gray-200/60 dark:border-white/10 last:border-r-0 py-0.5"
+                                            className="h-8 min-w-0 border-r border-gray-200/60 dark:border-white/10 last:border-r-0 py-0.5"
                                         >
                                             <div className={`mx-0.5 rounded-lg flex items-center justify-between px-1.5 h-full ${headerBg}`}>
                                                 <span className={`text-[10px] min-w-[16px] ${dateTextColor}`}>
                                                     {format(date, 'd')}
                                                 </span>
-                                                <span className={`text-xs font-bold ${headerTextColor}`}>
+                                                <span className={`min-w-0 truncate text-xs font-bold ${headerTextColor}`}>
                                                     周{['一', '二', '三', '四', '五', '六', '日'][index]}
                                                 </span>
                                                 <span className={`text-[9px] min-w-[16px] text-right truncate ${isHolidayType ? 'text-red-500 dark:text-red-400 font-medium' : isWorkday ? 'text-yellow-600 dark:text-yellow-400 font-medium' : 'text-transparent'}`}>
@@ -635,14 +677,14 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
                             )}
 
                             {/* Day columns */}
-                            <div className="flex-1 flex min-h-0">
+                            <div className="grid flex-1 grid-cols-7 min-h-0 min-w-0">
                                 {weekDays.map((date, index) => {
                                     const dateStr = format(date, 'yyyy-MM-dd')
                                     const dayData = weekTaskMap.get(dateStr) || { am: [], pm: [] }
                                     const isCurrentDay = isToday(date)
 
                                     return (
-                                        <div key={dateStr} className={`flex-1 flex flex-col border-r border-gray-200/60 dark:border-white/10 last:border-r-0 min-w-0 ${isCurrentDay ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
+                                        <div key={dateStr} className={`min-w-0 flex flex-col border-r border-gray-200/60 dark:border-white/10 last:border-r-0 ${isCurrentDay ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
                                             {/* AM Section */}
                                             <DroppableWeekCell
                                                 date={dateStr}
@@ -650,7 +692,7 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
                                                 className={`flex-1 flex flex-col min-h-0 border-b border-gray-200/60 dark:border-white/10 overflow-hidden hover:bg-gray-100/40 dark:hover:bg-gray-800/40 transition-colors ${isCurrentDay ? 'bg-blue-50/40 dark:bg-blue-900/20' : ''}`}
                                                 onContextMenu={(e) => handleContextMenu(e, dateStr, 'am', undefined, dayData.am)}
                                             >
-                                                <div className="flex-1 overflow-y-auto px-1 py-1 space-y-1.5 week-scrollbar">
+                                                <div className="flex-1 min-w-0 overflow-y-auto px-1 py-1 space-y-1.5 week-scrollbar">
                                                     {dayData.am.map(task => (
                                                         <DraggableWeekTask
                                                             key={task.id}
@@ -669,7 +711,7 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
                                                 className={`flex-1 flex flex-col min-h-0 overflow-hidden hover:bg-gray-100/40 dark:hover:bg-gray-800/40 transition-colors ${isCurrentDay ? 'bg-blue-50/40 dark:bg-blue-900/20' : ''}`}
                                                 onContextMenu={(e) => handleContextMenu(e, dateStr, 'pm', undefined, dayData.pm)}
                                             >
-                                                <div className="flex-1 overflow-y-auto px-1 py-1 space-y-1.5 week-scrollbar">
+                                                <div className="flex-1 min-w-0 overflow-y-auto px-1 py-1 space-y-1.5 week-scrollbar">
                                                     {dayData.pm.map(task => (
                                                         <DraggableWeekTask
                                                             key={task.id}
@@ -749,7 +791,7 @@ export const WeekViewSection: React.FC<WeekViewSectionProps> = ({ tasks, onTaskC
             <CopyFormatSettingsModal
                 isOpen={showFormatSettings}
                 onClose={() => setShowFormatSettings(false)}
-                onSave={(settings) => setCopyFormatSettings(settings)}
+                onSave={handleSaveCopySettings}
                 initialSettings={copyFormatSettings}
                 title="周视图 - 复制格式"
             />

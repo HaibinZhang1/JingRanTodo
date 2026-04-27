@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS = {
     "opacity": {
       "background": 100,
       "panel": 50,
-      "modal": 50
+      "modal": 80
     },
     "minimal": {
       "variant": "dark"

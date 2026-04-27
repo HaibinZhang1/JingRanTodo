@@ -30,6 +30,24 @@ const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string; icon: React
 
 const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
+type RecurringPriority = NonNullable<RecurringTemplate['priority']>
+
+const PRIORITY_META: Record<RecurringPriority, { label: string; dot: string; color: string }> = {
+    'very-low': { label: '很低', dot: 'bg-gray-400', color: '#9ca3af' },
+    low: { label: '低', dot: 'bg-green-500', color: '#22c55e' },
+    medium: { label: '中', dot: 'bg-yellow-500', color: '#eab308' },
+    high: { label: '高', dot: 'bg-red-500', color: '#ef4444' },
+    'very-high': { label: '很高', dot: 'bg-red-800', color: '#991b1b' }
+}
+
+const PRIORITY_OPTIONS: { value: RecurringPriority; color: string; label: string }[] = [
+    { value: 'very-low', color: 'bg-gray-400', label: '很低' },
+    { value: 'low', color: 'bg-green-500', label: '低' },
+    { value: 'medium', color: 'bg-yellow-500', label: '中' },
+    { value: 'high', color: 'bg-red-500', label: '高' },
+    { value: 'very-high', color: 'bg-red-800', label: '很高' }
+]
+
 interface RecurringTaskViewProps {
     isDark?: boolean
 }
@@ -68,6 +86,8 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                 title: title.trim(),
                 frequency: 'daily',
                 time: '09:00',
+                priority: 'medium',
+                reminderOnly: false,
                 enabled: true
             }))
         }
@@ -160,17 +180,24 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                                 <p className="text-xs mt-1">点击右上角 + 创建</p>
                             </div>
                         ) : (
-                            templates.map(template => (
-                                <div
-                                    key={template.id}
-                                    onClick={() => dispatch(setSelectedTemplate(template.id))}
-                                    className={`group p-3 rounded-xl cursor-pointer transition-all border ${selectedId === template.id
-                                        ? 'bg-white dark:bg-gray-700/80 shadow-sm border-blue-200 dark:border-blue-500/30'
-                                        : 'hover:bg-white/30 dark:hover:bg-gray-700/30 border-transparent'
-                                        }`}
-                                >
+                            templates.map(template => {
+                                const priority = template.priority && PRIORITY_META[template.priority] ? template.priority : 'medium'
+                                const priorityMeta = PRIORITY_META[priority]
+                                return (
+                                    <div
+                                        key={template.id}
+                                        onClick={() => dispatch(setSelectedTemplate(template.id))}
+                                        style={{ borderLeftColor: priorityMeta.color }}
+                                        className={`group p-3 rounded-xl cursor-pointer transition-all border border-l-4 ${selectedId === template.id
+                                            ? 'bg-white dark:bg-gray-700/80 shadow-sm border-blue-200 dark:border-blue-500/30'
+                                            : 'hover:bg-white/30 dark:hover:bg-gray-700/30 border-transparent'
+                                            }`}
+                                    >
                                     <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${template.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-500'}`} />
+                                        <div
+                                            className={`w-2 h-2 rounded-full ${template.enabled ? priorityMeta.dot : 'bg-gray-300 dark:bg-gray-500'}`}
+                                            title={`紧急度：${priorityMeta.label}`}
+                                        />
 
                                         {renamingId === template.id ? (
                                             <input
@@ -207,6 +234,12 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                                             </span>
                                         )}
 
+                                        {template.reminderOnly && (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300 shrink-0">
+                                                仅提醒
+                                            </span>
+                                        )}
+
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleToggleEnabled(template) }}
                                             className={`p-1 rounded transition-colors ${template.enabled ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400'}`}
@@ -231,9 +264,11 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                                         {template.frequency === 'yearly' && '每年'}
                                         {template.frequency === 'custom' && `每${template.intervalDays}天`}
                                         {' · '}{template.time}
+                                        {template.reminderOnly && ' · 不生成任务'}
                                     </div>
                                 </div>
-                            ))
+                                )
+                            })
                         )}
                     </div>
                 </GlassPanel>
@@ -436,50 +471,85 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                                 <div className="flex flex-col gap-6">
                                     <div>
                                         <label className="text-xs font-bold text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-2">
-                                            <Clock size={14} className="text-blue-500" /> 生成时间
+                                            <Clock size={14} className="text-blue-500" /> {editForm.reminderOnly ? '检查时间' : '生成时间'}
                                         </label>
                                         <input
                                             type="time"
                                             value={editForm.time || '09:00'}
                                             onChange={(e) => {
-                                                setEditForm(prev => ({ ...prev, time: e.target.value }))
+                                                const nextTime = e.target.value
+                                                setEditForm(prev => ({
+                                                    ...prev,
+                                                    time: nextTime,
+                                                    reminderTime: prev.reminderOnly ? nextTime : prev.reminderTime
+                                                }))
                                             }}
                                             className="w-32 bg-white/60 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 text-gray-800 dark:text-gray-200"
                                         />
                                     </div>
 
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setEditForm(prev => {
+                                                    const nextReminderOnly = !prev.reminderOnly
+                                                    return {
+                                                        ...prev,
+                                                        reminderOnly: nextReminderOnly,
+                                                        reminderTime: nextReminderOnly ? (prev.reminderTime || prev.time || '09:00') : prev.reminderTime
+                                                    }
+                                                })
+                                            }}
+                                            className="transform transition-transform active:scale-95"
+                                        >
+                                            {editForm.reminderOnly
+                                                ? <ToggleRight size={28} className="text-orange-500" />
+                                                : <ToggleLeft size={28} className="text-gray-300 dark:text-gray-600" />}
+                                        </button>
+                                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                                            只提醒，不生成任务
+                                        </span>
+                                    </div>
+
                                     <div>
                                         <label className="text-xs font-bold text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-3">
-                                            <Bell size={14} className="text-orange-500" /> 任务提醒
+                                            <Bell size={14} className="text-orange-500" /> {editForm.reminderOnly ? '提醒时间' : '任务提醒'}
                                         </label>
 
                                         <div className="flex items-center gap-3 mb-3">
-                                            <button
-                                                onClick={() => {
-                                                    if (editForm.reminderTime) {
-                                                        setEditForm(prev => ({ ...prev, reminderTime: '' }))
-                                                    } else {
-                                                        setEditForm(prev => ({ ...prev, reminderTime: editForm.time || '09:00' }))
-                                                    }
-                                                }}
-                                                className={`transform transition-transform active:scale-95`}
-                                            >
-                                                {editForm.reminderTime
-                                                    ? <ToggleRight size={28} className="text-blue-500" />
-                                                    : <ToggleLeft size={28} className="text-gray-300 dark:text-gray-600" />}
-                                            </button>
+                                            {!editForm.reminderOnly && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (editForm.reminderTime) {
+                                                            setEditForm(prev => ({ ...prev, reminderTime: '' }))
+                                                        } else {
+                                                            setEditForm(prev => ({ ...prev, reminderTime: editForm.time || '09:00' }))
+                                                        }
+                                                    }}
+                                                    className={`transform transition-transform active:scale-95`}
+                                                >
+                                                    {editForm.reminderTime
+                                                        ? <ToggleRight size={28} className="text-blue-500" />
+                                                        : <ToggleLeft size={28} className="text-gray-300 dark:text-gray-600" />}
+                                                </button>
+                                            )}
                                             <span className="text-sm text-gray-600 dark:text-gray-300">
-                                                {editForm.reminderTime ? '开启提醒' : '关闭提醒'}
+                                                {editForm.reminderOnly ? '仅发送提醒通知' : editForm.reminderTime ? '开启提醒' : '关闭提醒'}
                                             </span>
                                         </div>
 
-                                        {editForm.reminderTime && (
+                                        {(editForm.reminderTime || editForm.reminderOnly) && (
                                             <div className="animate-in fade-in slide-in-from-top-2 duration-200 pl-1">
                                                 <input
                                                     type="time"
-                                                    value={editForm.reminderTime}
+                                                    value={editForm.reminderTime || editForm.time || '09:00'}
                                                     onChange={(e) => {
-                                                        setEditForm(prev => ({ ...prev, reminderTime: e.target.value }))
+                                                        const nextTime = e.target.value
+                                                        setEditForm(prev => ({
+                                                            ...prev,
+                                                            reminderTime: nextTime,
+                                                            time: prev.reminderOnly ? nextTime : prev.time
+                                                        }))
                                                     }}
                                                     className="w-32 bg-white/60 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400 text-gray-800 dark:text-gray-200"
                                                 />
@@ -491,18 +561,12 @@ export default function RecurringTaskView({ isDark = false }: RecurringTaskViewP
                                     <div className="flex items-center gap-3">
                                         <span className="text-xs font-bold text-gray-500 dark:text-gray-400">紧急度</span>
                                         <div className="flex gap-2">
-                                            {[
-                                                { value: 'very-low', color: 'bg-gray-400' },
-                                                { value: 'low', color: 'bg-green-500' },
-                                                { value: 'medium', color: 'bg-yellow-500' },
-                                                { value: 'high', color: 'bg-red-500' },
-                                                { value: 'very-high', color: 'bg-red-800' }
-                                            ].map(opt => (
+                                            {PRIORITY_OPTIONS.map(opt => (
                                                 <button
                                                     key={opt.value}
-                                                    onClick={() => setEditForm(prev => ({ ...prev, priority: opt.value as any }))}
+                                                    onClick={() => setEditForm(prev => ({ ...prev, priority: opt.value }))}
                                                     className={`w-6 h-6 rounded-full border-2 ${opt.color} ${(editForm.priority || 'medium') === opt.value ? 'ring-2 ring-offset-1 ring-blue-400' : 'opacity-50 hover:opacity-100'} transition-all`}
-                                                    title={opt.value}
+                                                    title={opt.label}
                                                 />
                                             ))}
                                         </div>

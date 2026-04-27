@@ -150,6 +150,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('task-data-changed', handler)
         return () => ipcRenderer.removeListener('task-data-changed', handler)
     },
+    onSoftwareNotification: (callback: (notification: any) => void) => {
+        const handler = (_: any, notification: any) => callback(notification)
+        ipcRenderer.on('software-notification', handler)
+        return () => ipcRenderer.removeListener('software-notification', handler)
+    },
+    getActiveSoftwareNotifications: () => ipcRenderer.invoke('software-notifications:get-active'),
+    dismissSoftwareNotification: (id: string) => ipcRenderer.send('software-notification-dismissed', id),
 
     // Capsule operations (matching parseService.ts IPC handlers)
     capsuleParse: (text: string) => ipcRenderer.invoke('capsule:parse', text),

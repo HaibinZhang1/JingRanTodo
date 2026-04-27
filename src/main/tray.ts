@@ -3,6 +3,9 @@ import path from 'path'
 import { toggleCapsule } from './capsuleWindow'
 
 let tray: Tray | null = null
+let originalTrayImage: Electron.NativeImage | null = null
+let trayFlashTimer: NodeJS.Timeout | null = null
+let trayFlashVisible = true
 
 export function createTray(mainWindow: BrowserWindow) {
     try {
@@ -32,7 +35,8 @@ export function createTray(mainWindow: BrowserWindow) {
         }
 
         if (iconPath) {
-            tray = new Tray(iconPath)
+            originalTrayImage = nativeImage.createFromPath(iconPath)
+            tray = new Tray(originalTrayImage)
         } else {
             console.error('Tray icon not found, tray will not be created.')
             return null
@@ -78,4 +82,31 @@ export function createTray(mainWindow: BrowserWindow) {
     }
 
     return tray
+}
+
+export function startTrayFlash(): void {
+    if (!tray || !originalTrayImage || trayFlashTimer) return
+
+    const emptyImage = nativeImage.createEmpty()
+    trayFlashVisible = true
+    trayFlashTimer = setInterval(() => {
+        if (!tray || tray.isDestroyed()) {
+            stopTrayFlash()
+            return
+        }
+
+        tray.setImage(trayFlashVisible ? emptyImage : originalTrayImage!)
+        trayFlashVisible = !trayFlashVisible
+    }, 500)
+}
+
+export function stopTrayFlash(): void {
+    if (trayFlashTimer) {
+        clearInterval(trayFlashTimer)
+        trayFlashTimer = null
+    }
+
+    if (tray && !tray.isDestroyed() && originalTrayImage) {
+        tray.setImage(originalTrayImage)
+    }
 }

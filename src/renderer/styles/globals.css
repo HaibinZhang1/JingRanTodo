@@ -233,6 +233,15 @@ body,
   animation: gradientFlow 15s ease infinite;
 }
 
+.performance-lite *,
+.performance-lite *::before,
+.performance-lite *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* 防止选中文本 */
 .select-none {
   user-select: none;

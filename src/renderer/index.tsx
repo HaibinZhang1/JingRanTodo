@@ -122,6 +122,9 @@ interface ElectronAPI {
     onTaskDataChanged: (callback: () => void) => () => void
     onCardListChanged: (callback: (ids: string[]) => void) => () => void
     onNoteDataChanged: (callback: () => void) => () => void
+    onSoftwareNotification: (callback: (notification: SoftwareNotificationPayload) => void) => () => void
+    getActiveSoftwareNotifications: () => Promise<SoftwareNotificationPayload[]>
+    dismissSoftwareNotification: (id: string) => void
 
     // Card Window (Floating)
     cardCreate: (options: any) => Promise<string>
@@ -146,6 +149,7 @@ interface ElectronAPI {
     weekViewWidgetMove: (x: number, y: number) => void
     weekViewWidgetResize: (width: number, height: number) => void
     weekViewWidgetGetState: () => Promise<any>
+    getHolidayData: (year: number) => Promise<any | null>
 
     // System / Data
     getAutoStart: () => Promise<boolean>
@@ -212,4 +216,11 @@ declare global {
     interface Window {
         electronAPI: ElectronAPI
     }
+}
+
+interface SoftwareNotificationPayload {
+    id: string
+    title: string
+    body: string
+    createdAt: string
 }

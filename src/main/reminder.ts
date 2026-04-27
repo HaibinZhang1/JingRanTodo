@@ -1,10 +1,56 @@
-import { Notification, app } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 import { getAllTasks, updateTask, getAllSubtasks, updateSubtask } from './database'
+import { startTrayFlash, stopTrayFlash } from './tray'
 
 // 检查间隔 (60秒)
 const CHECK_INTERVAL = 60 * 1000
 
 let checkInterval: NodeJS.Timeout | null = null
+let notificationIpcRegistered = false
+
+interface SoftwareNotification {
+    id: string
+    title: string
+    body: string
+    createdAt: string
+}
+
+const activeNotifications = new Map<string, SoftwareNotification>()
+const notificationTimers = new Map<string, NodeJS.Timeout>()
+
+function registerNotificationIPC(): void {
+    if (notificationIpcRegistered) return
+    notificationIpcRegistered = true
+
+    ipcMain.handle('software-notifications:get-active', () => {
+        return Array.from(activeNotifications.values())
+    })
+
+    ipcMain.on('software-notification-dismissed', (_, id: string) => {
+        dismissSoftwareNotification(id)
+    })
+}
+
+function broadcastSoftwareNotification(notification: SoftwareNotification): void {
+    BrowserWindow.getAllWindows().forEach(win => {
+        if (!win.isDestroyed()) {
+            win.webContents.send('software-notification', notification)
+        }
+    })
+}
+
+function dismissSoftwareNotification(id: string): void {
+    const timer = notificationTimers.get(id)
+    if (timer) {
+        clearTimeout(timer)
+        notificationTimers.delete(id)
+    }
+
+    activeNotifications.delete(id)
+    if (activeNotifications.size === 0) {
+        stopTrayFlash()
+    }
+}
 
 /**
  * 检查并发送到期提醒
@@ -108,37 +154,35 @@ async function checkSubtaskReminders(now: Date): Promise<void> {
 }
 
 /**
- * 发送系统通知 (导出以便外部调用，如周期任务生成时立即提醒)
+ * 发送软件通知 (导出以便外部调用，如周期任务生成时立即提醒)
  */
 export function sendNotification(title: string, body: string): void {
-    if (!Notification.isSupported()) {
-        return
-    }
+    registerNotificationIPC()
 
-    const notification = new Notification({
+    const notification: SoftwareNotification = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: `井然 - ${title}`,
         body,
-        icon: undefined,
-        silent: false
-    })
+        createdAt: new Date().toISOString()
+    }
 
-    notification.on('click', () => {
-        const { BrowserWindow } = require('electron')
-        const windows = BrowserWindow.getAllWindows()
-        if (windows.length > 0) {
-            const mainWindow = windows[0]
-            if (mainWindow.isMinimized()) mainWindow.restore()
-            mainWindow.focus()
-        }
-    })
+    activeNotifications.set(notification.id, notification)
+    broadcastSoftwareNotification(notification)
+    startTrayFlash()
+    shell.beep()
 
-    notification.show()
+    const timer = setTimeout(() => {
+        dismissSoftwareNotification(notification.id)
+    }, 12000)
+    notificationTimers.set(notification.id, timer)
 }
 
 /**
  * 初始化提醒系统
  */
 export function initReminderSystem(): void {
+    registerNotificationIPC()
+
     // 初次检查
     checkReminders()
 
@@ -154,4 +198,9 @@ export function stopReminderSystem(): void {
         clearInterval(checkInterval)
         checkInterval = null
     }
+
+    notificationTimers.forEach(timer => clearTimeout(timer))
+    notificationTimers.clear()
+    activeNotifications.clear()
+    stopTrayFlash()
 }

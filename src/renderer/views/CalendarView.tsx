@@ -25,6 +25,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, RotateCcw, Copy, F
 import { DndContext, DragEndEvent, useDraggable, useDroppable, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
 import { useAppSelector, useAppDispatch } from '../hooks/useRedux'
 import { updateTask, deleteTask as deleteTaskAction } from '../store/tasksSlice'
+import { saveSetting } from '../store/settingsSlice'
 import { GlassPanel, CalendarContextMenu, CopyFormatSettingsModal, TaskPreviewCard } from '../components'
 import { toChineseNum, getPriorityColor } from '../utils/formatUtils'
 import { generateTaskCopyText, TaskCopySettings } from '../utils/taskCopyUtils'
@@ -128,6 +129,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ onOpenTaskDetail, isDark = 
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [activeTask, setActiveTask] = useState<Task | null>(null)
     const tasks = useAppSelector((state: RootState) => state.tasks.items)
+    const copyFormat = useAppSelector((state: RootState) => state.settings.copyFormat)
+    const copyTemplateTask = useAppSelector((state: RootState) => state.settings.copyTemplateTask)
+    const copyTemplateSubtask = useAppSelector((state: RootState) => state.settings.copyTemplateSubtask)
 
     // 配置 dnd-kit 传感器，添加距离限制以避免影响点击事件
     const sensors = useSensors(
@@ -170,15 +174,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ onOpenTaskDetail, isDark = 
     const closeContextMenu = () => setContextMenu(null)
 
     // 复制格式设置状态
-    const [copyFormatSettings, setCopyFormatSettings] = React.useState<{
-        copyFormat: 'text' | 'json' | 'markdown'
-        copyTemplateTask: string
-        copyTemplateSubtask: string
-    }>({
-        copyFormat: 'text',
-        copyTemplateTask: '{{chinese_index}}、{{title}}\n    {{description}}\n{{subtasks}}',
-        copyTemplateSubtask: '    {{index}}.{{title}}\n        {{description}}'
-    })
+    const copyFormatSettings = React.useMemo(() => ({
+        copyFormat,
+        copyTemplateTask,
+        copyTemplateSubtask
+    }), [copyFormat, copyTemplateTask, copyTemplateSubtask])
     const [showFormatSettings, setShowFormatSettings] = React.useState(false)
     const [previewTask, setPreviewTask] = useState<{ task: Task; position: { x: number; y: number } } | null>(null)
 
@@ -268,6 +268,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ onOpenTaskDetail, isDark = 
         }).catch(err => {
             console.error('Failed to copy:', err)
         })
+    }
+
+    const handleSaveCopySettings = (settings: typeof copyFormatSettings) => {
+        dispatch(saveSetting({ key: 'copyFormat', value: settings.copyFormat }))
+        dispatch(saveSetting({ key: 'copyTemplateTask', value: settings.copyTemplateTask }))
+        dispatch(saveSetting({ key: 'copyTemplateSubtask', value: settings.copyTemplateSubtask }))
     }
 
     // Handle drag end - update task due_date and reminder_time based on AM/PM
@@ -1015,7 +1021,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ onOpenTaskDetail, isDark = 
             <CopyFormatSettingsModal
                 isOpen={showFormatSettings}
                 onClose={() => setShowFormatSettings(false)}
-                onSave={(settings) => setCopyFormatSettings(settings)}
+                onSave={handleSaveCopySettings}
                 initialSettings={copyFormatSettings}
                 title="日历视图 - 复制格式"
             />

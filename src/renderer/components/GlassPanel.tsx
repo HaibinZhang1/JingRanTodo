@@ -24,7 +24,7 @@ interface GlassPanelProps {
  * 
  * 性能模式:
  * - best: 全部启用blur
- * - balanced: 主面板(panel)禁用blur，其他启用
+ * - balanced: 禁用实时毛玻璃，保留透明层次
  * - lite: 全部禁用blur
  */
 export const GlassPanel: React.FC<GlassPanelProps> = ({
@@ -63,9 +63,7 @@ export const GlassPanel: React.FC<GlassPanelProps> = ({
 
     // 根据性能模式和variant决定是否启用blur
     const shouldEnableBlur = (): boolean => {
-        if (performanceMode === 'lite') return false
-        if (performanceMode === 'balanced' && variant === 'panel') return false
-        return true
+        return performanceMode === 'best'
     }
 
     const finalOpacity = getOpacity()

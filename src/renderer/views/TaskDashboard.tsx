@@ -17,8 +17,10 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useAppDispatch, useAppSelector } from '../hooks/useRedux'
+import { useToday } from '../hooks/useToday'
 import { updateTask, createSubtask, updateSubtask, deleteSubtask } from '../store/tasksSlice'
 import { fetchNotes, editNote, toggleNoteDashboard, addNote } from '../store/notesSlice'
+import { saveSetting } from '../store/settingsSlice'
 import { WeekViewSection } from '../components/WeekViewSection'
 import { CustomPanelGrid } from '../components/CustomPanelGrid'
 import { GlassPanel, TaskCard, ConfirmModal, AddPanelTypeModal, NotePanel, CopyFormatSettingsModal } from '../components'
@@ -27,6 +29,7 @@ import { SectionHeader } from '../components/SectionHeader'
 import { sortTasks } from '../utils/taskUtils'
 import { DroppablePanel } from '../components/dashboard/DroppablePanel'
 import { toChineseNum } from '../utils/formatUtils'
+import { getDateOnly } from '../utils/dateUtils'
 import type { Task } from '../store/tasksSlice'
 import type { Note } from '../store/notesSlice'
 import type { RootState } from '../store'
@@ -59,6 +62,15 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
     const dispatch = useAppDispatch()
     const tasks = useAppSelector((state: RootState) => state.tasks.items)
     const { notes } = useAppSelector((state: RootState) => state.notes)
+    const todayDate = useToday()
+    const copyFormat = useAppSelector((state: RootState) => state.settings.copyFormat)
+    const copyTemplateTask = useAppSelector((state: RootState) => state.settings.copyTemplateTask)
+    const copyTemplateSubtask = useAppSelector((state: RootState) => state.settings.copyTemplateSubtask)
+    const globalCopySettings = useMemo(() => ({
+        copyFormat,
+        copyTemplateTask,
+        copyTemplateSubtask
+    }), [copyFormat, copyTemplateTask, copyTemplateSubtask])
 
     // Local State
     const [todayInput, setTodayInput] = useState('')
@@ -107,17 +119,6 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
             copyTemplateTask: '',
             copyTemplateSubtask: ''
         }
-    })
-
-    // Today Panel Copy Settings (Local state)
-    const [todayCopySettings, setTodayCopySettings] = useState<{
-        copyFormat: 'text' | 'json' | 'markdown'
-        copyTemplateTask: string
-        copyTemplateSubtask: string
-    }>({
-        copyFormat: 'text',
-        copyTemplateTask: '{{chinese_index}}、{{title}}\n    {{description}}\n{{subtasks}}',
-        copyTemplateSubtask: '    {{index}}.{{title}}\n        {{description}}'
     })
 
     // Load initial data
@@ -400,7 +401,7 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
             setCopySettingsModal({
                 isOpen: true,
                 panelId: 'today',
-                settings: todayCopySettings
+                settings: globalCopySettings
             })
         } else {
             const panel = customPanels.find(p => p.id === panelId)
@@ -414,14 +415,18 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
                 }
             })
         }
-    }, [customPanels, todayCopySettings])
+    }, [customPanels, globalCopySettings])
 
     const handleSaveCopySettings = useCallback(async (settings: { copyFormat: 'text' | 'json' | 'markdown'; copyTemplateTask: string; copyTemplateSubtask: string }) => {
         const panelId = copySettingsModal.panelId
         if (!panelId) return
 
         if (panelId === 'today') {
-            setTodayCopySettings(settings)
+            await Promise.all([
+                dispatch(saveSetting({ key: 'copyFormat', value: settings.copyFormat })).unwrap(),
+                dispatch(saveSetting({ key: 'copyTemplateTask', value: settings.copyTemplateTask })).unwrap(),
+                dispatch(saveSetting({ key: 'copyTemplateSubtask', value: settings.copyTemplateSubtask })).unwrap()
+            ])
         } else {
             const updated = customPanels.map(p =>
                 p.id === panelId ? { ...p, ...settings } : p
@@ -483,64 +488,30 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
     }, [customPanels, dashboardNotes])
 
     const todayTasks = useMemo(() => {
-        // 使用本地时间获取 YYYYMMDD
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = String(now.getMonth() + 1).padStart(2, '0')
-        const day = String(now.getDate()).padStart(2, '0')
-        const today = `${year}${month}${day}`
-        const todayNum = parseInt(today, 10)
-
         return sortTasks(tasks.filter((t: Task) => {
             // 排除持续任务（持续任务会自动生成今日待办）
             if (t.auto_generate_daily) return false
 
-            // 检查日期：如果是未来日期的任务，不显示在今日待办
-            if (t.start_date) {
-                const taskDate = new Date(t.start_date)
-                // 简单的日期比较：获取日期部分的数值 (YYYYMMDD)
-                const tDateNum = taskDate.getFullYear() * 10000 + (taskDate.getMonth() + 1) * 100 + taskDate.getDate()
-
-                // 如果是未来的任务，坚决不显示
-                if (tDateNum > todayNum) return false
+            // 已完成任务只在完成当天保留在今日待办
+            if (t.status === 'done') {
+                if (getDateOnly(t.completed_at) !== todayDate) return false
             }
+
+            const startDate = getDateOnly(t.start_date)
+            const dueDate = getDateOnly(t.due_date)
+
+            // 检查日期：如果是未来日期的任务，不显示在今日待办
+            if (startDate && startDate > todayDate) return false
 
             // 原有今日待办任务（panel_id 为空）
             if (!t.panel_id) {
-                // 如果已完成，必须是今天完成的才显示（且要有完成时间）
-                if (t.status === 'done') {
-                    if (!t.completed_at) return false
-                    const completedDate = new Date(t.completed_at)
-                    const cDateNum = completedDate.getFullYear() * 10000 + (completedDate.getMonth() + 1) * 100 + completedDate.getDate()
-                    if (cDateNum !== todayNum) return false
-                }
-                return true
+                return !dueDate || dueDate <= todayDate
             }
 
             // 自定义面板任务，开始日期是今天的也显示
-            if (t.panel_id && t.start_date) {
-                // 将存储的日期字符串（可能是 UTC ISO）转换为本地时间对象
-                let taskDate = new Date(t.start_date)
-
-                // 如果 Date 解析失败（NaN），尝试手动解析 YYYY/MM/DD
-                if (isNaN(taskDate.getTime())) {
-                    // 尝试直接比较字符串（针对非标准格式）
-                    const dateStr = t.start_date.split(/[\sT]/)[0].replace(/[-/]/g, '')
-                    if (dateStr === today) return true
-                    return false
-                }
-
-                const tYear = taskDate.getFullYear()
-                const tMonth = String(taskDate.getMonth() + 1).padStart(2, '0')
-                const tDay = String(taskDate.getDate()).padStart(2, '0')
-                const taskDateStr = `${tYear}${tMonth}${tDay}`
-
-                if (taskDateStr === today) return true
-
-            }
-            return false
+            return startDate === todayDate
         }))
-    }, [tasks])
+    }, [tasks, todayDate])
     const themeConfig = useAppSelector((state: RootState) => state.settings.themeConfig)
     const panelOpacity = themeConfig?.opacity?.panel ?? 50
 
@@ -577,9 +548,9 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
                         onCopySuccess={showCopyToast}
                         onOpenCopySettings={() => handleOpenCopySettings('today')}
                         isFloatWindowOpen={activeCardIds.includes('card-today')}
-                        copyFormat={todayCopySettings.copyFormat}
-                        copyTemplateTask={todayCopySettings.copyTemplateTask}
-                        copyTemplateSubtask={todayCopySettings.copyTemplateSubtask}
+                        copyFormat={copyFormat}
+                        copyTemplateTask={copyTemplateTask}
+                        copyTemplateSubtask={copyTemplateSubtask}
                         isDark={isDark}
                     />
                 </div>

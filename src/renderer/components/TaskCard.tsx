@@ -76,10 +76,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     const panelOpacity = themeConfig?.opacity?.panel ?? 60
     const pinnedOpacity = Math.min(panelOpacity + 20, 100) // 置顶卡片更明显
     const normalOpacity = Math.max(panelOpacity - 20, 10) // 普通卡片更透明
+    const enableCardEffects = performanceMode === 'best'
 
     const cardStyleClass = task.is_pinned
-        ? `border-white/50 dark:border-white/10 shadow-lg hover:shadow-xl hover:-translate-y-0.5`
-        : `border-white/10 dark:border-white/5 shadow-none hover:border-white/30 hover:shadow-sm`
+        ? `border-white/50 dark:border-white/10 ${enableCardEffects ? 'shadow-lg hover:shadow-xl hover:-translate-y-0.5' : 'shadow-sm'}`
+        : `border-white/10 dark:border-white/5 shadow-none ${enableCardEffects ? 'hover:border-white/30 hover:shadow-sm' : ''}`
 
     // 根据性能模式确定CardBgStyle
     // 极简模式：纯色背景，最佳/普通模式：带调节的透明度
@@ -178,7 +179,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     const hasCompletedSubtasks = completedSubtasks > 0
 
     // 根据性能模式决定是否启用blur
-    const blurClass = performanceMode === 'lite' ? '' : 'backdrop-blur-md'
+    const blurClass = performanceMode === 'best' ? 'backdrop-blur-md' : ''
 
     return (
         <div

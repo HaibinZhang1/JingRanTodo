@@ -15,11 +15,28 @@ interface TypeEntry {
 }
 
 interface HolidayData {
+    holiday?: Record<string, unknown>
     type: Record<string, TypeEntry>
 }
 
 // 缓存已加载的节假日数据 (key: year)
 const holidayCache: Map<number, HolidayData> = new Map()
+
+function getHolidayPath(year: number): string | null {
+    const fileName = `${year}-holiday.json`
+    const paths = app.isPackaged
+        ? [
+            join(process.resourcesPath, 'public', 'holiday', fileName),
+            join(app.getAppPath(), 'public', 'holiday', fileName),
+            join(__dirname, '..', '..', 'public', 'holiday', fileName)
+        ]
+        : [
+            join(app.getAppPath(), 'public', 'holiday', fileName),
+            join(__dirname, '..', '..', 'public', 'holiday', fileName)
+        ]
+
+    return paths.find(p => existsSync(p)) || null
+}
 
 /**
  * 加载指定年份的节假日数据 (同步)
@@ -30,12 +47,10 @@ function loadHolidayData(year: number): HolidayData | null {
     }
 
     try {
-        // 获取节假日文件路径
-        const holidayPath = app.isPackaged
-            ? join(process.resourcesPath, 'public', 'holiday', `${year}-holiday.json`)
-            : join(__dirname, '..', '..', 'public', 'holiday', `${year}-holiday.json`)
+        // 获取节假日文件路径，兼容 extraResources 和 app.asar 内资源
+        const holidayPath = getHolidayPath(year)
 
-        if (!existsSync(holidayPath)) {
+        if (!holidayPath) {
             return null
         }
 
@@ -43,6 +58,7 @@ function loadHolidayData(year: number): HolidayData | null {
         const data = JSON.parse(content)
 
         const holidayData: HolidayData = {
+            holiday: data.holiday || {},
             type: data.type || {}
         }
 
@@ -52,6 +68,10 @@ function loadHolidayData(year: number): HolidayData | null {
         console.error(`[HolidayService-Main] Failed to load ${year} holiday data:`, e)
         return null
     }
+}
+
+export function getHolidayData(year: number): HolidayData | null {
+    return loadHolidayData(year)
 }
 
 /**

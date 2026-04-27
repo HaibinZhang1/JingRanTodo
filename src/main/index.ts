@@ -41,6 +41,7 @@ import { initUpdater } from './updater'
 import { initCapsule } from './capsuleWindow'
 import { initParseService } from './capsule/parseService'
 import { registerExcelHandlers } from './excel/importHandler'
+import { getHolidayData } from './holidayService'
 
 // Helper to find icon path (same logic as tray.ts)
 function getAppIconPath() {
@@ -104,8 +105,7 @@ function createMainWindow() {
     if (isDev) {
         const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
         mainWindow.loadURL(devUrl)
-        // DevTools 默认打开，也可以通过 F12 或 Ctrl+Shift+I 切换
-        mainWindow.webContents.openDevTools({ mode: 'detach' })
+        // 需要调试时可设置 OPEN_DEVTOOLS=1；平时避免额外 GPU/内存占用
 
         // 注册 F12 快捷键来切换 DevTools
         mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -114,6 +114,10 @@ function createMainWindow() {
                 event.preventDefault()
             }
         })
+
+        if (process.env.OPEN_DEVTOOLS === '1') {
+            mainWindow.webContents.openDevTools({ mode: 'detach' })
+        }
     } else {
         mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
     }
@@ -362,6 +366,10 @@ function setupIPC() {
             broadcastTaskUpdate()
         }
         return result
+    })
+
+    ipcMain.handle('get-holiday-data', async (_, year: number) => {
+        return getHolidayData(year)
     })
 
     // 壁纸管理 - 保存到项目的 public/images/wallpapers 目录

@@ -6,8 +6,10 @@ import PanelInputBar from './PanelInputBar'
 import GlassPanel from './GlassPanel'
 import TaskCard from './TaskCard'
 import { fetchTasks, updateTask as updateTaskAction, createSubtask, updateSubtask, createTask, deleteSubtask, deleteTask } from '../store/tasksSlice'
+import { loadSettings } from '../store/settingsSlice'
 import TaskDetailModal from './TaskDetailModal'
-import { formatLocalDate, getToday, getTomorrow, getSunday, getNextMonday } from '../utils/dateUtils'
+import { getDateOnly, getToday, getTomorrow, getSunday, getNextMonday } from '../utils/dateUtils'
+import { useToday } from '../hooks/useToday'
 import { toChineseNum } from '../utils/formatUtils'
 import { generateTaskCopyText, TaskCopySettings } from '../utils/taskCopyUtils'
 import { sortTasks } from '../utils/taskUtils'
@@ -28,6 +30,7 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
     const dispatch = useDispatch()
     const tasks = useSelector((state: any) => state.tasks?.items || [])
     const { copyFormat, copyTemplateTask, copyTemplateSubtask, themeConfig } = useSelector((state: any) => state.settings)
+    const todayStr = useToday()
 
     // Dark mode detection based on settings
     const [isDark, setIsDark] = useState(false)
@@ -54,6 +57,7 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
 
     // 加载任务数据
     useEffect(() => {
+        dispatch(loadSettings() as any)
         dispatch(fetchTasks() as any)
 
         // 监听数据变化事件
@@ -106,11 +110,15 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
     const allFilteredTasks = React.useMemo(() => tasks.filter((task: Task) => {
         // 1. Context Filter (Scope) - determining what tasks belong to this card
         let inScope = false
-        const todayStr = getToday()
 
         if (cardId === 'card-today') {
             // 排除持续任务（持续任务会自动生成今日待办）
             if (task.auto_generate_daily) return false
+
+            // 已完成任务只在完成当天保留在今日待办
+            if (task.status === 'done' && getDateOnly(task.completed_at) !== todayStr) {
+                return false
+            }
 
             // Today Logic: No Panel + (Due <= Today OR (Done & Completed Today))
             // Matching TaskDashboard: panel_id === null
@@ -118,55 +126,30 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
             if (isNoPanel) {
                 // 未完成任务：截止日期 <= 今天（只比较日期部分）
                 if (task.status !== 'done') {
-                    if (task.due_date) {
-                        const dueDateOnly = task.due_date.split('T')[0]
-                        inScope = dueDateOnly <= todayStr
-                    }
+                    const dueDateOnly = getDateOnly(task.due_date)
+                    inScope = !dueDateOnly || dueDateOnly <= todayStr
                 } else {
-                    // 已完成任务：使用本地日期比较，避免时区问题
-                    if (task.completed_at) {
-                        const completedDate = new Date(task.completed_at)
-                        const completedLocalDate = formatLocalDate(completedDate)
-                        inScope = completedLocalDate === todayStr
-                    }
+                    inScope = true
                 }
             } else {
                 // 自定义面板任务，开始日期是今天的也显示（只比较日期部分，不含时间）
-                if (task.start_date) {
-                    const todayNormalized = todayStr.replace(/-/g, '')
-                    // 将存储的日期字符串（可能是 UTC ISO）转换为本地时间对象
-                    let taskDate = new Date(task.start_date)
-                    let startDateOnlyStr
-
-                    if (isNaN(taskDate.getTime())) {
-                        startDateOnlyStr = task.start_date.split(/[\sT]/)[0].replace(/[-/]/g, '')
-                    } else {
-                        const tYear = taskDate.getFullYear()
-                        const tMonth = String(taskDate.getMonth() + 1).padStart(2, '0')
-                        const tDay = String(taskDate.getDate()).padStart(2, '0')
-                        startDateOnlyStr = `${tYear}${tMonth}${tDay}`
-                    }
-
-                    if (startDateOnlyStr === todayNormalized) {
-                        inScope = true
-                    }
-                }
+                inScope = getDateOnly(task.start_date) === todayStr
             }
         } else if (cardId === 'card-week') {
             // Week Logic: No Panel + Due > Today AND Due <= Sunday
             const sundayStr = getSunday()
             const isNoPanel = !task.panel_id
             if (isNoPanel && task.due_date) {
-                const dueDateOnly = task.due_date.split('T')[0]
-                inScope = dueDateOnly > todayStr && dueDateOnly <= sundayStr
+                const dueDateOnly = getDateOnly(task.due_date)
+                inScope = !!dueDateOnly && dueDateOnly > todayStr && dueDateOnly <= sundayStr
             }
         } else if (cardId === 'card-nextWeek') {
             // Next Week: No Panel + Due >= Next Monday
             const nextMon = getNextMonday()
             const isNoPanel = !task.panel_id
             if (isNoPanel && task.due_date) {
-                const dueDateOnly = task.due_date.split('T')[0]
-                inScope = dueDateOnly >= nextMon
+                const dueDateOnly = getDateOnly(task.due_date)
+                inScope = !!dueDateOnly && dueDateOnly >= nextMon
             }
         } else if (cardId.startsWith('card-panel-')) {
             // Legacy format: cardId = 'card-panel-XXX', task.panel_id = 'panel-XXX'
@@ -198,7 +181,7 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
         }
 
         return true
-    }), [tasks, filter, cardId])
+    }), [tasks, filter, cardId, todayStr])
 
     const sortedTasks = React.useMemo(() => sortTasks(allFilteredTasks), [allFilteredTasks])
     const displayTasks = sortedTasks.slice(0, 8)

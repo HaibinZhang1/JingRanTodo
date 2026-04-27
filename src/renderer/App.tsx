@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Minus, Square, X } from 'lucide-react'
+import { Bell, Minus, Square, X } from 'lucide-react'
 import iconPng from '/icon.png?url'
 import { useAppDispatch, useAppSelector } from './hooks/useRedux'
 import { fetchTasks } from './store/tasksSlice'
@@ -14,6 +14,13 @@ import NotesView from './views/NotesView'
 import RecurringTaskView from './views/RecurringTaskView'
 import type { Task } from './store/tasksSlice'
 import type { RootState } from './store'
+
+interface SoftwareNotificationPayload {
+    id: string
+    title: string
+    body: string
+    createdAt: string
+}
 
 export default function App() {
     const dispatch = useAppDispatch()
@@ -30,6 +37,8 @@ export default function App() {
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
     const [isExcelImportOpen, setIsExcelImportOpen] = useState(false)
     const [panels, setPanels] = useState<{ id: string; title: string }[]>([])
+    const [softwareNotifications, setSoftwareNotifications] = useState<SoftwareNotificationPayload[]>([])
+    const notificationTimersRef = useRef<Record<string, number>>({})
 
     // 首次启动引导页状态
     const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -38,6 +47,17 @@ export default function App() {
 
     // 计算 isDark 派生状态
     const isDark = themeConfig.mode === 'minimal' && themeConfig.minimal.variant === 'dark'
+
+    const dismissSoftwareNotification = (id: string) => {
+        const timer = notificationTimersRef.current[id]
+        if (timer) {
+            window.clearTimeout(timer)
+            delete notificationTimersRef.current[id]
+        }
+
+        setSoftwareNotifications(prev => prev.filter(item => item.id !== id))
+        window.electronAPI?.dismissSoftwareNotification?.(id)
+    }
 
     // 初始化：加载设置和任务
     useEffect(() => {
@@ -78,6 +98,38 @@ export default function App() {
             console.error('[App] Dispatch error:', e)
         }
     }, [dispatch])
+
+    // 软件通知
+    useEffect(() => {
+        let disposed = false
+
+        const showNotification = (notification: SoftwareNotificationPayload) => {
+            if (disposed) return
+
+            setSoftwareNotifications(prev => [
+                notification,
+                ...prev.filter(item => item.id !== notification.id)
+            ].slice(0, 3))
+
+            const oldTimer = notificationTimersRef.current[notification.id]
+            if (oldTimer) window.clearTimeout(oldTimer)
+            notificationTimersRef.current[notification.id] = window.setTimeout(() => {
+                dismissSoftwareNotification(notification.id)
+            }, 12000)
+        }
+
+        const unsubscribe = window.electronAPI?.onSoftwareNotification?.(showNotification)
+        window.electronAPI?.getActiveSoftwareNotifications?.()?.then(list => {
+            list.forEach(showNotification)
+        })
+
+        return () => {
+            disposed = true
+            unsubscribe?.()
+            Object.values(notificationTimersRef.current).forEach(timer => window.clearTimeout(timer))
+            notificationTimersRef.current = {}
+        }
+    }, [])
 
     // 动态计算背景样式
     const getBackgroundStyle = (): React.CSSProperties => {
@@ -243,7 +295,7 @@ export default function App() {
 
     return (
         <div
-            className={`w-full h-screen font-sans overflow-hidden flex flex-col relative transition-all duration-700 rounded-lg ${getTextClass()} ${isDark ? 'dark' : ''}`}
+            className={`w-full h-screen font-sans overflow-hidden flex flex-col relative transition-all duration-700 rounded-lg performance-${settings.performanceMode} ${getTextClass()} ${isDark ? 'dark' : ''}`}
         >
             {/* Background Layer */}
             <div
@@ -254,7 +306,7 @@ export default function App() {
                 }}
             >
                 {/* Noise overlay for dithering gradient banding */}
-                {themeConfig.mode === 'gradient' && (
+                {themeConfig.mode === 'gradient' && settings.performanceMode === 'best' && (
                     <div
                         className="absolute inset-0 opacity-[0.05] pointer-events-none mix-blend-overlay"
                         style={{
@@ -265,6 +317,37 @@ export default function App() {
             </div>
 
             <TitleBar />
+
+            {softwareNotifications.length > 0 && (
+                <div className="fixed right-4 top-12 z-[220] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 pointer-events-none">
+                    {softwareNotifications.map(notification => (
+                        <div
+                            key={notification.id}
+                            className={`pointer-events-auto overflow-hidden rounded-xl border shadow-lg ${isDark ? 'border-white/10 bg-gray-900/95 text-gray-100' : 'border-white/60 bg-white/95 text-gray-800'}`}
+                        >
+                            <div className="flex items-start gap-3 p-3">
+                                <div className="mt-0.5 rounded-lg bg-blue-500/15 p-2 text-blue-600 dark:text-blue-400">
+                                    <Bell size={16} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="truncate text-sm font-semibold">{notification.title}</div>
+                                    <div className={`mt-0.5 text-xs leading-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        {notification.body}
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => dismissSoftwareNotification(notification.id)}
+                                    className={`shrink-0 rounded-md p-1 transition-colors ${isDark ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                                    title="关闭通知"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="flex-1 flex overflow-hidden relative">
                 <Sidebar

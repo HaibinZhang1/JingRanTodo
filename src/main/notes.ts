@@ -23,6 +23,10 @@ export interface Note {
 
 type NoteMeta = Omit<Note, 'content'>
 
+function getDefaultNotesDir(): string {
+    return join(app.getPath('userData'), 'notes')
+}
+
 // Helper to notify all windows
 function notifyNoteDataChanged() {
     BrowserWindow.getAllWindows().forEach(win => {
@@ -39,11 +43,7 @@ async function resolveNotesDir(): Promise<string> {
         let notesPath = settings['notes_path'] as string
 
         if (!notesPath) {
-            // 打包后: process.resourcesPath/public/notes
-            // 开发时: app.getAppPath()/public/notes
-            notesPath = app.isPackaged
-                ? join(process.resourcesPath, 'public', 'notes')
-                : join(app.getAppPath(), 'public', 'notes')
+            notesPath = getDefaultNotesDir()
         }
 
         if (!existsSync(notesPath)) {
@@ -100,9 +100,10 @@ function copyDefaultNotes(targetDir: string) {
         return;
     }
 
-    // Only initialize if meta file does NOT exist (first run or reset)
+    // Only initialize if meta/notes are missing (first run or default path migration)
     const metaPath = getMetaPath();
-    if (existsSync(metaPath)) {
+    const hasNotes = existsSync(targetDir) && readdirSync(targetDir).some(file => file.endsWith('.md'));
+    if (existsSync(metaPath) && hasNotes) {
         return;
     }
 
@@ -111,7 +112,7 @@ function copyDefaultNotes(targetDir: string) {
     try {
         // Copy meta file
         const defaultMetaPath = join(defaultNotesDir, 'notes-meta.json');
-        if (existsSync(defaultMetaPath)) {
+        if (!existsSync(metaPath) && existsSync(defaultMetaPath)) {
             copyFileSync(defaultMetaPath, metaPath);
         }
 
@@ -119,7 +120,10 @@ function copyDefaultNotes(targetDir: string) {
         const files = readdirSync(defaultNotesDir);
         for (const file of files) {
             if (file.endsWith('.md')) {
-                copyFileSync(join(defaultNotesDir, file), join(targetDir, file));
+                const targetPath = join(targetDir, file);
+                if (!existsSync(targetPath)) {
+                    copyFileSync(join(defaultNotesDir, file), targetPath);
+                }
             }
         }
     } catch (e) {

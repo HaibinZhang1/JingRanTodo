@@ -17,6 +17,9 @@ if (typeof window !== 'undefined') {
             getSetting: vi.fn().mockResolvedValue(null),
             setSetting: vi.fn().mockResolvedValue(undefined),
             getAllPanels: vi.fn().mockResolvedValue([]),
+            onSoftwareNotification: vi.fn().mockReturnValue(() => {}),
+            getActiveSoftwareNotifications: vi.fn().mockResolvedValue([]),
+            dismissSoftwareNotification: vi.fn(),
         },
         writable: true,
     })
