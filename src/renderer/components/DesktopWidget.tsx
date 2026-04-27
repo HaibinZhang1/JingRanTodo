@@ -120,17 +120,13 @@ export const DesktopWidget: React.FC<DesktopWidgetProps> = ({ cardId, initialOpa
                 return false
             }
 
-            // Today Logic: No Panel + (Due <= Today OR (Done & Completed Today))
+            // Today Logic: No Panel + (Due = Today OR no due date)
             // Matching TaskDashboard: panel_id === null
             const isNoPanel = !task.panel_id // null or undefined or empty
             if (isNoPanel) {
-                // 未完成任务：截止日期 <= 今天（只比较日期部分）
-                if (task.status !== 'done') {
-                    const dueDateOnly = getDateOnly(task.due_date)
-                    inScope = !dueDateOnly || dueDateOnly <= todayStr
-                } else {
-                    inScope = true
-                }
+                // 只显示今天的任务；昨天及更早的任务留在其原日期
+                const dueDateOnly = getDateOnly(task.due_date)
+                inScope = !dueDateOnly || dueDateOnly === todayStr
             } else {
                 // 自定义面板任务，开始日期是今天的也显示（只比较日期部分，不含时间）
                 inScope = getDateOnly(task.start_date) === todayStr

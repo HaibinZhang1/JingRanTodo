@@ -505,7 +505,7 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
 
             // 原有今日待办任务（panel_id 为空）
             if (!t.panel_id) {
-                return !dueDate || dueDate <= todayDate
+                return !dueDate || dueDate === todayDate
             }
 
             // 自定义面板任务，开始日期是今天的也显示
