@@ -39,7 +39,11 @@ async function resolveNotesDir(): Promise<string> {
         let notesPath = settings['notes_path'] as string
 
         if (!notesPath) {
-            notesPath = join(app.getAppPath(), 'public', 'notes')
+            // 打包后: process.resourcesPath/public/notes
+            // 开发时: app.getAppPath()/public/notes
+            notesPath = app.isPackaged
+                ? join(process.resourcesPath, 'public', 'notes')
+                : join(app.getAppPath(), 'public', 'notes')
         }
 
         if (!existsSync(notesPath)) {

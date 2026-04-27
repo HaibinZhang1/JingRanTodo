@@ -171,16 +171,18 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
         // Note: Panel sorting is now handled by CustomPanelGrid's onOrderChange
         // Only trigger update if it's a panel drag (which CustomPanelGrid handles internally usually, 
         // but here we might need to handle drops? No, CustomPanelGrid handles sortable items.)
-        // This handler handles TASK drops between panels.
+        // This handler handles TASK drops between panels AND within same panel.
 
         // Task Drop Logic
         const activeTask = tasks.find(t => t.id === activeIdStr)
         if (activeTask) {
             let overPanelId = ''
+            let overTask: Task | undefined
+
             if (over.data.current?.type === 'panel') {
                 overPanelId = over.data.current.panelId
             } else if (over.data.current?.type === 'task') {
-                const overTask = tasks.find(t => t.id === overIdStr)
+                overTask = tasks.find(t => t.id === overIdStr)
                 // If dropping over a task, find which panel that task belongs to
                 // Logic: if overTask is in today, panel is today. If custom, ID.
                 // We don't track panel ID on task object for 'today', it's null.
@@ -191,12 +193,44 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
 
             if (overPanelId) {
                 const currentPanelId = activeTask.panel_id || 'today'
+
                 if (overPanelId !== currentPanelId) {
-                    // Update task panel
+                    // Cross-panel move: Update task panel
                     dispatch(updateTask({
                         ...activeTask,
                         panel_id: overPanelId === 'today' ? null : overPanelId
                     }))
+                } else if (overTask && activeTask.id !== overTask.id) {
+                    // Same panel reorder: Update rank to be near the target task
+                    // 生成介于两个任务之间的新rank
+                    const panelTasks = currentPanelId === 'today'
+                        ? todayTasks
+                        : tasks.filter(t => t.panel_id === currentPanelId)
+
+                    const activeIndex = panelTasks.findIndex(t => t.id === activeTask.id)
+                    const overIndex = panelTasks.findIndex(t => t.id === overTask.id)
+
+                    if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+                        // 计算新的rank（使用时间戳+位置来确保唯一性）
+                        const timestamp = Date.now().toString(36)
+                        let newRank: string
+
+                        if (overIndex === 0) {
+                            // 移到最前面
+                            newRank = panelTasks[0].rank.slice(0, -1) + '0' + timestamp
+                        } else if (overIndex >= panelTasks.length - 1) {
+                            // 移到最后面
+                            newRank = panelTasks[panelTasks.length - 1].rank + '~' + timestamp
+                        } else {
+                            // 移到中间 - 使用目标位置的rank作为基准
+                            newRank = overTask.rank + (activeIndex < overIndex ? '~' : '0') + timestamp
+                        }
+
+                        dispatch(updateTask({
+                            ...activeTask,
+                            rank: newRank
+                        }))
+                    }
                 }
             }
         }
@@ -248,7 +282,11 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
         const task = tasks.find(t => t.id === id)
         if (task) {
             const newStatus = task.status === 'done' ? 'todo' : 'done'
-            dispatch(updateTask({ ...task, status: newStatus }))
+            dispatch(updateTask({
+                ...task,
+                status: newStatus,
+                completed_at: newStatus === 'done' ? new Date().toISOString() : null
+            }))
         }
     }, [dispatch, tasks])
 
@@ -451,6 +489,7 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
         const month = String(now.getMonth() + 1).padStart(2, '0')
         const day = String(now.getDate()).padStart(2, '0')
         const today = `${year}${month}${day}`
+        const todayNum = parseInt(today, 10)
 
         return sortTasks(tasks.filter((t: Task) => {
             // 排除持续任务（持续任务会自动生成今日待办）
@@ -461,14 +500,22 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
                 const taskDate = new Date(t.start_date)
                 // 简单的日期比较：获取日期部分的数值 (YYYYMMDD)
                 const tDateNum = taskDate.getFullYear() * 10000 + (taskDate.getMonth() + 1) * 100 + taskDate.getDate()
-                const todayNum = parseInt(today, 10) // today is YYYYMMDD string
 
                 // 如果是未来的任务，坚决不显示
                 if (tDateNum > todayNum) return false
             }
 
             // 原有今日待办任务（panel_id 为空）
-            if (!t.panel_id) return true
+            if (!t.panel_id) {
+                // 如果已完成，必须是今天完成的才显示（且要有完成时间）
+                if (t.status === 'done') {
+                    if (!t.completed_at) return false
+                    const completedDate = new Date(t.completed_at)
+                    const cDateNum = completedDate.getFullYear() * 10000 + (completedDate.getMonth() + 1) * 100 + completedDate.getDate()
+                    if (cDateNum !== todayNum) return false
+                }
+                return true
+            }
 
             // 自定义面板任务，开始日期是今天的也显示
             if (t.panel_id && t.start_date) {
@@ -494,7 +541,8 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
             return false
         }))
     }, [tasks])
-    const panelOpacity = 50 // Fixed opacity or from settings?
+    const themeConfig = useAppSelector((state: RootState) => state.settings.themeConfig)
+    const panelOpacity = themeConfig?.opacity?.panel ?? 50
 
     const activeTask = useMemo(() => activeId ? tasks.find(t => t.id === activeId) : null, [activeId, tasks])
 
@@ -604,6 +652,7 @@ export const TaskDashboard: React.FC<TaskDashboardProps> = ({ onOpenTaskDetail, 
                                                 onRemove={() => handleRemovePanel(panel.id)}
                                                 onOpenFloatWindow={() => onOpenFloatWindow(panel.id, panel.title)}
                                                 onCloseFloatWindow={() => window.electronAPI?.cardClose?.(`card-${panel.id}`)}
+                                                opacity={panelOpacity}
                                                 isCustom={true}
                                             />
                                         </div>

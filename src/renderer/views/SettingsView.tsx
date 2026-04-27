@@ -7,9 +7,9 @@ import {
     setThemeMode, updateMinimalConfig, updateGradientConfig, updateWallpaperConfig,
     setSavedWallpapers, addSavedWallpaper, removeSavedWallpaper,
     setBackgroundOpacity, setPanelOpacity, setModalOpacity,
-    setLanguage, setNotesPath, saveSetting, setShortcut
+    setLanguage, setNotesPath, saveSetting, setShortcut, setPerformanceMode
 } from '../store/settingsSlice'
-import type { ThemeMode, GradientVariant } from '../store/settingsSlice'
+import type { ThemeMode, GradientVariant, PerformanceMode } from '../store/settingsSlice'
 import { fetchNotes } from '../store/notesSlice'
 import { GlassPanel, ConfirmModal } from '../components'
 import { ShortcutRecorder } from '../components/ShortcutRecorder'
@@ -32,7 +32,7 @@ interface ColorPreset {
 export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isDark }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-    const { themeConfig, language, notesPath, shortcuts } = useAppSelector((state: RootState) => state.settings)
+    const { themeConfig, language, notesPath, shortcuts, performanceMode } = useAppSelector((state: RootState) => state.settings)
 
     const [activeSection, setActiveSection] = useState<'appearance' | 'general' | 'extensions' | 'data' | 'about'>('appearance')
     const [autoStart, setAutoStart] = useState(false)
@@ -212,7 +212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
 
     const sections = [
         { id: 'appearance', name: t.settings.appearance, icon: <Palette size={18} /> },
-        { id: 'general', name: t.nav.settings, icon: <Globe size={18} /> },
+        { id: 'general', name: t.settings.general, icon: <Globe size={18} /> },
         { id: 'extensions', name: t.settings.extensions, icon: <Puzzle size={18} /> },
         { id: 'data', name: t.settings.data, icon: <Folder size={18} /> },
         { id: 'about', name: t.settings.about, icon: <Info size={18} /> },
@@ -247,7 +247,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
                     <div className="shrink-0 flex items-center justify-between p-6 pb-2">
                         <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
                             {activeSection === 'appearance' && t.settings.appearance}
-                            {activeSection === 'general' && t.nav.settings}
+                            {activeSection === 'general' && t.settings.general}
                             {activeSection === 'extensions' && t.settings.extensions}
                             {activeSection === 'data' && t.settings.data}
                             {activeSection === 'about' && t.settings.about}
@@ -263,7 +263,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
                         {/* Appearance Tab */}
                         {activeSection === 'appearance' && (
                             <div className="space-y-8">
+                                {/* Performance Mode Settings */}
                                 <div>
+                                    <h4 className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">性能模式</h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                        根据设备性能选择合适的模式，低性能设备建议使用"极简"模式
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {([
+                                            { mode: 'best' as const, label: '最佳', desc: '全部特效', icon: '✨' },
+                                            { mode: 'balanced' as const, label: '普通', desc: '均衡性能', icon: '⚡' },
+                                            { mode: 'lite' as const, label: '极简', desc: '最高性能', icon: '🚀' }
+                                        ] as const).map(({ mode, label, desc, icon }) => (
+                                            <button
+                                                key={mode}
+                                                onClick={() => {
+                                                    dispatch(setPerformanceMode(mode))
+                                                    dispatch(saveSetting({ key: 'performanceMode', value: mode }))
+                                                }}
+                                                className={`p-3 rounded-xl border-2 text-center transition-all
+                                                    ${performanceMode === mode
+                                                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-blue-200 dark:ring-blue-900'
+                                                        : 'border-gray-200 dark:border-gray-700 bg-white/20 dark:bg-gray-800/20 hover:border-gray-300 dark:hover:border-gray-600'
+                                                    }`}
+                                            >
+                                                <div className="text-xl mb-0.5">{icon}</div>
+                                                <div className={`text-xs font-bold ${performanceMode === mode ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>{label}</div>
+                                                <div className="text-[10px] text-gray-500 dark:text-gray-400">{desc}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Theme Mode Switcher */}
+                                <div>
+                                    <h4 className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">主题模式</h4>
+
                                     {/* Mode Switcher */}
                                     <div className="grid grid-cols-3 gap-4 mb-8">
                                         <button
@@ -441,19 +476,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
                                 <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                                     <h4 className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-4">透明度</h4>
                                     <div className="space-y-4">
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-xs text-gray-600 dark:text-gray-300 w-24">背景透明度</span>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="100"
-                                                step="1"
-                                                value={themeConfig.opacity.background}
-                                                onChange={(e) => handleBackgroundOpacityChange(Number(e.target.value))}
-                                                className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                            />
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 font-medium w-8 text-right">{themeConfig.opacity.background}%</span>
-                                        </div>
+                                        {/* 背景透明度 - 仅最佳模式显示 */}
+                                        {performanceMode === 'best' && (
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-xs text-gray-600 dark:text-gray-300 w-24">背景透明度</span>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    step="1"
+                                                    value={themeConfig.opacity.background}
+                                                    onChange={(e) => handleBackgroundOpacityChange(Number(e.target.value))}
+                                                    className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                                />
+                                                <span className="text-xs text-gray-700 dark:text-gray-300 font-medium w-8 text-right">{themeConfig.opacity.background}%</span>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-4">
                                             <span className="text-xs text-gray-600 dark:text-gray-300 w-24">主面板透明度</span>
                                             <input
@@ -488,6 +526,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ isOpen, onClose, isD
                         {/* General Tab */}
                         {activeSection === 'general' && (
                             <div className="space-y-6">
+
                                 {/* Shortcuts Settings */}
                                 <div>
                                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">快捷键设置</h3>

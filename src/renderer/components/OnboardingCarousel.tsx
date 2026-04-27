@@ -1,6 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, Briefcase, Calendar, Layout, FileText, Sparkles, RefreshCw, ExternalLink, StickyNote } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Briefcase, Calendar, Layout, FileText, Sparkles, RefreshCw, ExternalLink, StickyNote, Zap } from 'lucide-react'
+import { useDispatch } from 'react-redux'
 import { GlassPanel } from './GlassPanel'
+import { setPerformanceMode, saveSetting } from '../store/settingsSlice'
+import type { PerformanceMode } from '../store/settingsSlice'
 
 interface OnboardingCarouselProps {
     onComplete: () => void
@@ -14,6 +17,7 @@ interface SlideContent {
     features?: string[]
     iconBg: string
     iconColor: string
+    isPerformanceSelect?: boolean
 }
 
 const slides: SlideContent[] = [
@@ -74,6 +78,14 @@ const slides: SlideContent[] = [
         iconColor: 'text-rose-600 dark:text-rose-400'
     },
     {
+        icon: <Zap size={32} />,
+        title: '选择性能模式',
+        description: '根据您的设备配置选择合适的显示效果',
+        iconBg: 'bg-gradient-to-br from-orange-500 to-yellow-500',
+        iconColor: 'text-white',
+        isPerformanceSelect: true
+    },
+    {
         icon: <FileText size={32} />,
         title: '准备就绪',
         description: '现在开始，让每一天都井然有序！',
@@ -84,9 +96,17 @@ const slides: SlideContent[] = [
 ]
 
 export const OnboardingCarousel: React.FC<OnboardingCarouselProps> = ({ onComplete, isDark = false }) => {
+    const dispatch = useDispatch()
     const [currentSlide, setCurrentSlide] = useState(0)
     const [direction, setDirection] = useState<'left' | 'right'>('right')
     const [isAnimating, setIsAnimating] = useState(false)
+    const [selectedMode, setSelectedMode] = useState<PerformanceMode>('balanced')
+
+    const handleModeSelect = (mode: PerformanceMode) => {
+        setSelectedMode(mode)
+        dispatch(setPerformanceMode(mode))
+        dispatch(saveSetting({ key: 'performanceMode', value: mode }) as any)
+    }
 
     const goToSlide = useCallback((index: number) => {
         if (isAnimating || index === currentSlide) return
@@ -187,6 +207,35 @@ export const OnboardingCarousel: React.FC<OnboardingCarouselProps> = ({ onComple
                                     >
                                         {feature}
                                     </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Performance Mode Selection */}
+                        {slide.isPerformanceSelect && (
+                            <div className="grid grid-cols-3 gap-4 mt-4">
+                                {([
+                                    { mode: 'best' as const, label: '最佳效果', desc: '全部毛玻璃特效\n适合有独立显卡', icon: '✨' },
+                                    { mode: 'balanced' as const, label: '普通模式', desc: '部分特效\n推荐大多数设备', icon: '⚡' },
+                                    { mode: 'lite' as const, label: '极简模式', desc: '禁用特效\n适合无显卡设备', icon: '🚀' }
+                                ]).map(({ mode, label, desc, icon }) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => handleModeSelect(mode)}
+                                        className={`p-5 rounded-2xl border-2 text-center transition-all hover:scale-[1.02]
+                                            ${selectedMode === mode
+                                                ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/30 ring-2 ring-blue-200 dark:ring-blue-800 shadow-lg'
+                                                : `border-gray-200 dark:border-gray-700 ${isDark ? 'bg-gray-800/40 hover:bg-gray-800/60' : 'bg-white/40 hover:bg-white/60'}`
+                                            }`}
+                                    >
+                                        <div className="text-3xl mb-2">{icon}</div>
+                                        <div className={`text-base font-bold mb-1 ${selectedMode === mode ? 'text-blue-600 dark:text-blue-400' : isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                                            {label}
+                                        </div>
+                                        <div className={`text-xs whitespace-pre-line ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            {desc}
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
                         )}

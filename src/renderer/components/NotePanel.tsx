@@ -57,7 +57,7 @@ export const NotePanel: React.FC<NotePanelProps> = ({
             setSaveStatus('saving')
             onContentChange(note.id, newContent)
             setSaveStatus('saved')
-        }, 200)
+        }, 1000)
     }
 
     const toggleMode = () => {

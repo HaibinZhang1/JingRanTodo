@@ -179,6 +179,9 @@ export default function App() {
 
     // 自定义标题栏
     const TitleBar = () => {
+        const performanceMode = settings.performanceMode
+        const enableBlur = performanceMode === 'best'
+
         const handleDoubleClick = (e: React.MouseEvent) => {
             // 忽略按钮区域和 no-drag 区域
             if ((e.target as HTMLElement).closest('button')) return
@@ -186,10 +189,15 @@ export default function App() {
             window.electronAPI?.windowMaximize()
         }
 
+        // 根据性能模式决定背景样式
+        const bgClass = enableBlur
+            ? `backdrop-blur-sm ${isDark ? 'bg-gray-900/30' : 'bg-white/30'}`
+            : isDark ? 'bg-gray-900/80' : 'bg-white/80'
+
         return (
             <div
-                className={`h-8 flex items-center justify-between px-3 backdrop-blur-sm border-b transition-colors relative
-                ${isDark ? 'bg-gray-900/30 border-white/10' : 'bg-white/30 border-white/20'}`}
+                className={`h-8 flex items-center justify-between px-3 border-b transition-colors relative
+                ${bgClass} ${isDark ? 'border-white/10' : 'border-white/20'}`}
                 style={{ WebkitAppRegion: 'drag' } as any}
                 onDoubleClick={handleDoubleClick}>
                 <div className="flex items-center gap-2" data-no-drag style={{ WebkitAppRegion: 'no-drag' } as any}>

@@ -20,7 +20,6 @@ const fs = require('fs');
     }
 
     const fileUrl = 'file://' + htmlPath;
-    console.log('Loading:', fileUrl);
     await page.goto(fileUrl);
 
     // 4. Locate the icon frame

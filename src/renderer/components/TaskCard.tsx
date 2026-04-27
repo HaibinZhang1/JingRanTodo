@@ -3,7 +3,9 @@ import {
     CheckCircle, Circle, Pin, Edit3, Trash2,
     ChevronDown, ChevronUp, Plus, Check, Copy, AlertTriangle
 } from 'lucide-react'
+import { useSelector } from 'react-redux'
 import type { Task } from '../store/tasksSlice'
+import type { RootState } from '../store'
 
 interface TaskCardProps {
     task: Task
@@ -25,9 +27,8 @@ interface TaskCardProps {
  * - 左侧优先级竖条
  * - 点击展开子任务
  * - 悬停显示操作按钮
- * - 使用 React.memo 避免不必要的重渲染
  */
-export const TaskCard: React.FC<TaskCardProps> = React.memo(({
+export const TaskCard: React.FC<TaskCardProps> = ({
     task,
     isDark = false,
     onToggleStatus,
@@ -41,6 +42,8 @@ export const TaskCard: React.FC<TaskCardProps> = React.memo(({
     onDeleteSubtask,
     compact = false
 }) => {
+    const performanceMode = useSelector((state: RootState) => state.settings.performanceMode)
+    const themeConfig = useSelector((state: RootState) => state.settings.themeConfig)
     const [expanded, setExpanded] = useState(false)
     const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
 
@@ -69,9 +72,31 @@ export const TaskCard: React.FC<TaskCardProps> = React.memo(({
     })()
 
     // 根据是否置顶决定卡片的"明显程度"
+    // 动态读取面板透明度设置
+    const panelOpacity = themeConfig?.opacity?.panel ?? 60
+    const pinnedOpacity = Math.min(panelOpacity + 20, 100) // 置顶卡片更明显
+    const normalOpacity = Math.max(panelOpacity - 20, 10) // 普通卡片更透明
+
     const cardStyleClass = task.is_pinned
-        ? "bg-white/50 dark:bg-gray-800/50 border-white/50 dark:border-white/10 shadow-lg hover:bg-white/70 dark:hover:bg-gray-700/70 hover:shadow-xl hover:-translate-y-0.5"
-        : "bg-white/20 dark:bg-gray-800/30 border-white/10 dark:border-white/5 shadow-none hover:bg-white/30 dark:hover:bg-gray-700/50 hover:border-white/30 hover:shadow-sm"
+        ? `border-white/50 dark:border-white/10 shadow-lg hover:shadow-xl hover:-translate-y-0.5`
+        : `border-white/10 dark:border-white/5 shadow-none hover:border-white/30 hover:shadow-sm`
+
+    // 根据性能模式确定CardBgStyle
+    // 极简模式：纯色背景，最佳/普通模式：带调节的透明度
+    const getCardBgStyle = () => {
+        const opacity = task.is_pinned ? pinnedOpacity : normalOpacity
+        if (performanceMode === 'lite') {
+            // 极简模式：纯色背景，完全不透明
+            return { backgroundColor: isDark ? '#1f2937' : '#ffffff' }
+        }
+        // 最佳/普通模式：毛玻璃效果 + 动态透明度
+        return {
+            backgroundColor: isDark
+                ? `rgba(31, 41, 55, ${opacity / 100})`
+                : `rgba(255, 255, 255, ${opacity / 100})`
+        }
+    }
+    const cardBgStyle = getCardBgStyle()
 
     const handleCardClick = () => {
         setExpanded(!expanded)
@@ -152,13 +177,17 @@ export const TaskCard: React.FC<TaskCardProps> = React.memo(({
     const totalSubtasks = task.subtasks?.length || 0
     const hasCompletedSubtasks = completedSubtasks > 0
 
+    // 根据性能模式决定是否启用blur
+    const blurClass = performanceMode === 'lite' ? '' : 'backdrop-blur-md'
+
     return (
         <div
             className={`
-        relative backdrop-blur-md border cursor-pointer group transition-all duration-200 overflow-hidden flex flex-col
+        relative ${blurClass} border cursor-pointer group transition-all duration-200 overflow-hidden flex flex-col
         ${cardStyleClass}
         ${compact ? 'px-2 py-1.5 rounded-xl' : 'p-3 mb-3 rounded-xl'}
       `}
+            style={cardBgStyle}
             onClick={handleCardClick}
         >
             {/* 优先级竖条 (左侧) */}
@@ -373,6 +402,6 @@ export const TaskCard: React.FC<TaskCardProps> = React.memo(({
             </div>
         </div>
     )
-})
+}
 
 export default TaskCard

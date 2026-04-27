@@ -89,12 +89,25 @@ const NotesView: React.FC<NotesViewProps> = ({ isDark = false, onExitFullScreen 
             return b.updatedAt - a.updatedAt
         })
 
-    // Auto-select first note on page load
+    // Auto-select note on page load: prefer last selected, fallback to first
     useEffect(() => {
         if (!selectedId && filteredNotes.length > 0) {
-            setSelectedId(filteredNotes[0].id)
+            // 优先恢复上次选择的笔记
+            const lastSelectedId = localStorage.getItem('notes_last_selected_id')
+            if (lastSelectedId && filteredNotes.some(n => n.id === lastSelectedId)) {
+                setSelectedId(lastSelectedId)
+            } else {
+                setSelectedId(filteredNotes[0].id)
+            }
         }
     }, [filteredNotes, selectedId])
+
+    // 保存选择状态到localStorage
+    useEffect(() => {
+        if (selectedId) {
+            localStorage.setItem('notes_last_selected_id', selectedId)
+        }
+    }, [selectedId])
 
     const handleTogglePin = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation()

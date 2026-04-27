@@ -6,6 +6,9 @@ export type ThemeMode = 'minimal' | 'gradient' | 'wallpaper'
 // 渐变变体类型
 export type GradientVariant = 'single' | 'dual' | 'tri'
 
+// 性能模式类型
+export type PerformanceMode = 'best' | 'balanced' | 'lite'
+
 // 主题配置接口
 export interface ThemeConfig {
     mode: ThemeMode
@@ -28,7 +31,7 @@ export const DEFAULT_THEME_CONFIG: ThemeConfig = {
     opacity: {
         background: 100,  // 默认完全不透明
         panel: 70,        // 默认 70%
-        modal: 95         // 默认 95%
+        modal: 80         // 默认 80%
     },
     minimal: { variant: 'light' },
     gradient: { variant: 'tri', colors: ['#ff9a9e', '#fecfef', '#feada6'] },
@@ -65,6 +68,9 @@ export interface SettingsState {
 
     // 周视图折叠状态
     weekViewCollapsed: boolean
+
+    // 性能模式
+    performanceMode: PerformanceMode
 }
 
 const initialState: SettingsState = {
@@ -83,7 +89,8 @@ const initialState: SettingsState = {
     copyTemplateSubtask: '    {{index}}.{{title}}\n        {{description}}',
     panelLayouts: [],
     avatarPath: undefined,
-    weekViewCollapsed: false
+    weekViewCollapsed: false,
+    performanceMode: 'balanced'
 }
 
 // 迁移旧主题设置到新结构
@@ -243,6 +250,9 @@ const settingsSlice = createSlice({
         },
         setWeekViewCollapsed: (state, action: PayloadAction<boolean>) => {
             state.weekViewCollapsed = action.payload
+        },
+        setPerformanceMode: (state, action: PayloadAction<PerformanceMode>) => {
+            state.performanceMode = action.payload
         }
     },
     extraReducers: (builder) => {
@@ -273,6 +283,7 @@ const settingsSlice = createSlice({
                 if (settings.panelLayouts) state.panelLayouts = settings.panelLayouts
                 if (settings.avatarPath !== undefined) state.avatarPath = settings.avatarPath
                 if (settings.weekViewCollapsed !== undefined) state.weekViewCollapsed = settings.weekViewCollapsed
+                if (settings.performanceMode) state.performanceMode = settings.performanceMode
 
 
                 state.loaded = true
@@ -309,7 +320,8 @@ export const {
     setCopyTemplateTask,
     setCopyTemplateSubtask,
     setPanelLayouts,
-    setWeekViewCollapsed
+    setWeekViewCollapsed,
+    setPerformanceMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

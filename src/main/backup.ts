@@ -30,14 +30,12 @@ export function createBackup(): void {
 
     // 如果今天的备份已存在，跳过
     if (existsSync(backupPath)) {
-        console.log('Backup for today already exists')
         return
     }
 
     try {
         // 复制数据库文件
         copyFileSync(dbPath, backupPath)
-        console.log(`Backup created: ${backupPath}`)
 
         // 清理旧备份
         cleanupOldBackups(backupDir)
